@@ -1,0 +1,81 @@
+name: FBS dashboard
+
+on:
+  schedule:
+    # каждый час в :23 — на ровном часе очередь GitHub длиннее и запуск задерживается
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: "Сколько страниц заказов разобрать за прогон (по умолчанию из config.json)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: fbs-dashboard
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Выгрузка из Wildberries
+        env:
+          WB_TOKEN: ${{ secrets.WB_TOKEN }}
+          WB_MAX_PAGES: ${{ github.event.inputs.max_pages }}
+        run: |
+          if [ -z "$WB_TOKEN" ]; then
+            echo "::error::секрет WB_TOKEN не задан"; exit 1
+          fi
+          python collect.py
+
+      - name: Свод и страница
+        run: |
+          python aggregate.py
+          python render.py
+
+      - name: Сохранить состояние в репозиторий
+        run: |
+          git config user.name  "fbs-dashboard"
+          git config user.email "actions@github.com"
+          git add -f state/
+          if ! git diff --cached --quiet; then
+            git commit -m "состояние $(date -u +%F' '%H:%M) UTC"
+            git pull --rebase --autostash || true
+            git push || echo "push не прошёл — попробуем в следующий час"
+          else
+            echo "состояние не изменилось"
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dashboard
+          path: dist/index.html
+          retention-days: 14
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

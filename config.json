@@ -1,0 +1,15 @@
+{
+  "brand": "EPIC LOVE",
+  "article_prefixes": [
+    "epic_love"
+  ],
+  "assembly_deadline_h": 48,
+  "warn_hours": 12,
+  "keep_days": 45,
+  "backfill_days": 3,
+  "max_pages_per_run": 60,
+  "cards_refresh_pages": 6,
+  "cards_refresh_hours": 12,
+  "warehouse_deadline_h": {},
+  "stocks_full_refresh_hours": 4
+}

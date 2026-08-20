@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FBS · __BRAND__ · сборка, статусы, поставки</title>
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FBS · __BRAND__">
+<meta property="og:description" content="Заказы по артикулам, таймер сборки, статусы заказов и поставок. Обновляется каждый час.">
+<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)">
+<style>
+:root{
+  color-scheme: light;
+  --plane:#f9f9f7; --surface:#fcfcfb;
+  --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --up:#006300;
+  --radius:10px;
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0d0d0d; --surface:#1a1a19;
+  --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+  --good:#0ca30c; --warn:#fab219; --crit:#d03b3b; --up:#0ca30c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--plane);color:var(--ink);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+.wrap{max-width:1320px;margin:0 auto;padding:24px 20px 80px}
+h1{font-size:21px;font-weight:650;margin:0 0 2px;letter-spacing:-.01em}
+h2{font-size:15px;font-weight:640;margin:0 0 2px;letter-spacing:-.005em}
+.sub{color:var(--ink2);font-size:13px;margin:0}
+.tiny{color:var(--muted);font-size:12px;line-height:1.45}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.head{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.head>div:first-child{flex:1 1 420px;min-width:0}
+.stamp{text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}
+.stamp b{display:block;color:var(--ink);font-size:15px;font-weight:640}
+.btns{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+.btns button{appearance:none;border:1px solid var(--border);background:var(--surface);color:var(--ink2);
+  font:inherit;font-size:12.5px;padding:5px 10px;border-radius:7px;cursor:pointer}
+.btns button:hover{background:color-mix(in oklab,var(--ink) 6%,transparent)}
+.btns button.primary{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:580}
+.btns button.primary:hover{opacity:.85;background:var(--ink)}
+.btns button.fresh{background:var(--up);border-color:var(--up);color:#fff}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.btns button.fresh{animation:pulse 1.6s ease-in-out infinite}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(139px,1fr));gap:1px;background:var(--surface);
+      border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
+.kpi{background:var(--surface);padding:13px 13px 12px;box-shadow:0 0 0 1px var(--border)}
+.kpi .lab{font-size:11.5px;color:var(--muted);margin-bottom:5px}
+.kpi .val{font-size:22px;font-weight:640;letter-spacing:-.02em;line-height:1.15;white-space:nowrap}
+.kpi .note{font-size:11.5px;color:var(--ink2);margin-top:3px}
+.kpi.crit .val{color:var(--crit)} .kpi.warn .val{color:var(--warn)} .kpi.good .val{color:var(--up)}
+.kpi.hero{background:color-mix(in oklab,var(--s1) 7%,var(--surface))}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--grid);white-space:nowrap}
+th{color:var(--muted);font-weight:520;font-size:11.5px;border-bottom:1px solid var(--axis)}
+th:first-child,td:first-child{text-align:left}
+th.l,td.l{text-align:left}
+tbody tr:hover td{background:color-mix(in oklab,var(--ink) 4%,transparent)}
+.scroll{overflow-x:auto;margin:0 -4px;padding:0 4px}
+.tall{max-height:520px;overflow-y:auto}
+.tall thead th{position:sticky;top:0;background:var(--surface);z-index:1}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:550;white-space:nowrap}
+.pill.queue{background:color-mix(in oklab,var(--s1) 15%,transparent);color:var(--s1)}
+.pill.assembly{background:color-mix(in oklab,var(--s2) 16%,transparent);color:var(--s2)}
+.pill.supply{background:color-mix(in oklab,var(--warn) 22%,transparent);color:#8a6300}
+.pill.way{background:color-mix(in oklab,var(--s3) 15%,transparent);color:var(--s3)}
+.pill.accepted{background:color-mix(in oklab,var(--s3) 22%,transparent);color:var(--s3)}
+.pill.sold{background:color-mix(in oklab,var(--up) 18%,transparent);color:var(--up)}
+.pill.pickup{background:color-mix(in oklab,var(--s1) 12%,transparent);color:var(--s1)}
+.pill.cancel{background:color-mix(in oklab,var(--crit) 15%,transparent);color:var(--crit)}
+.pill.draft{background:color-mix(in oklab,var(--muted) 22%,transparent);color:var(--ink2)}
+.pill.bad{background:color-mix(in oklab,var(--crit) 18%,transparent);color:var(--crit)}
+.pill.done{background:color-mix(in oklab,var(--up) 16%,transparent);color:var(--up)}
+.pill.none{background:transparent;color:var(--muted)}
+.tmr{font-weight:640;font-variant-numeric:tabular-nums}
+.tmr.ok{color:var(--up)} .tmr.warn{color:#8a6300} .tmr.crit{color:var(--crit)}
+.bar{display:block;height:5px;width:92px;margin-left:auto;margin-top:5px;border-radius:3px;background:var(--grid);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:var(--s3)}
+.bar i.warn{background:var(--warn)} .bar i.crit{background:var(--crit)}
+.thumb{width:34px;height:44px;object-fit:cover;border-radius:5px;background:var(--grid);vertical-align:middle;margin-right:9px;flex:none}
+.art{display:flex;align-items:center;gap:0}
+.art b{font-weight:560;display:block}
+.art span{color:var(--muted);font-size:11.5px}
+.bar-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{appearance:none;border:0;background:transparent;color:var(--ink2);font:inherit;font-size:12.5px;
+  font-weight:520;padding:5px 11px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:color-mix(in oklab,var(--ink) 6%,transparent)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:600}
+input[type=search]{font:inherit;font-size:13px;border:1px solid var(--border);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:7px 11px;min-width:220px}
+.flag{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;line-height:1.5;padding:11px 13px;border-radius:8px;
+  background:color-mix(in oklab,var(--warn) 14%,var(--surface));border:1px solid color-mix(in oklab,var(--warn) 32%,transparent);margin-bottom:12px}
+.flag.info{background:color-mix(in oklab,var(--s1) 8%,var(--surface));border-color:color-mix(in oklab,var(--s1) 22%,transparent)}
+.flag.crit{background:color-mix(in oklab,var(--crit) 10%,var(--surface));border-color:color-mix(in oklab,var(--crit) 28%,transparent)}
+.empty{text-align:center;padding:44px 20px;color:var(--ink2)}
+.empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px}
+.spark{display:flex;align-items:flex-end;gap:3px;height:64px;margin:10px 0 2px}
+.spark div{flex:1;background:var(--s1);border-radius:2px 2px 0 0;min-height:2px;position:relative}
+.spark div:hover{background:var(--s2)}
+.xax{display:flex;gap:3px;font-size:10px;color:var(--muted)}
+.xax div{flex:1;text-align:center;overflow:hidden}
+td.trunc{max-width:360px;overflow:hidden;text-overflow:ellipsis}
+a{color:var(--s1)}
+@media(max-width:640px){.wrap{padding:16px 12px 60px}.kpi .val{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div>
+      <h1>FBS · <span id="brand"></span></h1>
+      <p class="sub">Заказы со склада продавца по артикулам, таймер сборки и состояние поставок. Страница пересобирается каждый час; кнопка «обновить» запускает пересборку вне расписания.</p>
+    </div>
+    <div>
+      <div class="stamp"><b id="upd">—</b><span id="updrel"></span></div>
+      <div class="btns">
+        <button id="refresh" class="primary">обновить</button>
+        <button id="theme">тема</button>
+        <button id="share">ссылка</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="notes"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card">
+    <h2>Таймер сборки</h2>
+    <p class="tiny" id="tmrsub"></p>
+    <div class="bar-row" style="margin-top:12px">
+      <div class="seg" id="tmrfilter">
+        <button data-f="all" aria-pressed="true">все в работе</button>
+        <button data-f="overdue">просрочено</button>
+        <button data-f="soon">горит</button>
+      </div>
+      <div class="spacer" style="flex:1"></div>
+      <span class="tiny" id="tmrcount"></span>
+    </div>
+    <div class="scroll tall"><table id="tmr">
+      <thead><tr>
+        <th class="l">Артикул</th><th class="l">Заказ</th><th class="l">Склад</th><th class="l">Куда</th>
+        <th>Создан</th><th>Дедлайн</th><th>Осталось</th><th class="l">Стадия</th><th>Цена</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <div id="tmrempty"></div>
+  </div>
+
+  <div class="card">
+    <h2>По артикулам</h2>
+    <p class="tiny">Сколько заказов каждого артикула в какой стадии. Сортировка — сначала то, что горит.</p>
+    <div class="scroll" style="margin-top:12px"><table id="arts">
+      <thead><tr>
+        <th class="l">Артикул</th><th>В сборке</th><th>Просрочено</th><th>В поставке</th>
+        <th>Принято WB</th><th>Выкуплено</th><th>Отменено</th><th>За 24 ч</th><th>За 7 дн</th><th>За 30 дн</th><th>Всего</th><th>Остаток</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <div id="artsempty"></div>
+  </div>
+
+  <div class="card">
+    <h2>Остаток FBS по складам</h2>
+    <p class="tiny">Сколько единиц бренда сейчас проставлено на каждом складе продавца. Заказ уходит на тот склад, где лежит остаток, — отсюда видно, куда именно поедут сборочные задания.</p>
+    <div class="scroll tall" style="margin-top:12px"><table id="stk">
+      <thead><tr>
+        <th class="l">Склад продавца</th><th class="l">Габарит</th><th>Остаток</th><th class="l">Артикулы и размеры</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <div id="stkempty"></div>
+  </div>
+
+  <div class="card">
+    <h2>Поставки</h2>
+    <p class="tiny">Черновик — можно докладывать заказы. Отгружается — закрыта и едет на склад WB. Принята — отсканирована на приёмке.</p>
+    <div class="scroll tall" style="margin-top:12px"><table id="sups">
+      <thead><tr>
+        <th class="l">Поставка</th><th class="l">Название</th><th>Создана</th><th>Закрыта</th><th>Принята</th>
+        <th class="l">Состояние</th><th>Заказов</th><th class="l">Артикулы</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <div id="supsempty"></div>
+  </div>
+
+  <div class="card">
+    <h2>Все заказы</h2>
+    <div class="bar-row" style="margin-top:10px">
+      <input type="search" id="q" placeholder="артикул, номер заказа, поставка">
+      <div class="seg" id="stagefilter"></div>
+      <div style="flex:1"></div>
+      <span class="tiny" id="allcount"></span>
+    </div>
+    <div class="scroll tall"><table id="all">
+      <thead><tr>
+        <th class="l">Артикул</th><th class="l">Заказ</th><th>Создан</th><th class="l">Стадия</th>
+        <th class="l">Статус продавца</th><th class="l">Статус WB</th><th class="l">Поставка</th>
+        <th class="l">Склад</th><th>Цена</th>
+      </tr></thead><tbody></tbody>
+    </table></div>
+    <div id="allempty"></div>
+  </div>
+
+  <div class="card">
+    <h2>Заказы по дням</h2>
+    <div class="spark" id="spark"></div>
+    <div class="xax" id="sparkx"></div>
+    <p class="tiny" style="margin-top:10px" id="sparksub"></p>
+  </div>
+
+  <p class="tiny" id="foot"></p>
+</div>
+
+<script id="payload" type="application/json">__DATA__</script>
+<script>
+const D = JSON.parse(document.getElementById('payload').textContent);
+const M = D.meta, K = D.kpi;
+const MSK = 3 * 3600e3;
+
+const fmtDT = s => { if(!s) return '—'; const d = new Date(s);
+  return new Date(d.getTime()+MSK).toISOString().slice(0,16).replace('T',' ').replace(/^\d{4}-/,''); };
+const fmtD = s => { if(!s) return '—'; const d = new Date(s);
+  return new Date(d.getTime()+MSK).toISOString().slice(5,10).split('-').reverse().join('.'); };
+const num = n => (n==null? '—' : n.toLocaleString('ru-RU'));
+const rub = n => (n==null? '—' : Math.round(n).toLocaleString('ru-RU')+' ₽');
+const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- шапка ---------- */
+document.getElementById('brand').textContent = M.brand || '';
+document.title = 'FBS · ' + (M.brand||'') + ' · сборка, статусы, поставки';
+const upd = new Date(M.generatedAt);
+document.getElementById('upd').textContent = fmtDT(M.generatedAt) + ' МСК';
+function relTime(){
+  const m = Math.round((Date.now()-upd.getTime())/60000);
+  document.getElementById('updrel').textContent = m < 1 ? 'только что' :
+    m < 60 ? m+' мин назад' : Math.floor(m/60)+' ч '+(m%60)+' мин назад';
+}
+relTime(); setInterval(relTime, 30000);
+
+document.getElementById('theme').onclick = () => {
+  const r = document.documentElement;
+  r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+};
+if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.dataset.theme='dark';
+/* ---------- кнопка обновления ---------- */
+/* Страница статическая, пересборку делает GitHub Actions. Кнопка ведёт на запуск
+   workflow; когда новая версия собралась, кнопка сама позеленеет и перезагрузит. */
+const btn = document.getElementById('refresh');
+let hasFresh = false;
+btn.onclick = () => {
+  if (hasFresh) { location.reload(); return; }
+  if (M.runUrl) {
+    window.open(M.runUrl, '_blank', 'noopener');
+    btn.textContent = 'жду сборку';
+    btn.disabled = false;
+    poll(20000);
+  } else {
+    location.reload();
+  }
+};
+async function checkVersion(){
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), {cache:'no-store'});
+    if (!r.ok) return false;
+    const v = await r.json();
+    if (v.generatedAt && v.generatedAt !== M.generatedAt) {
+      hasFresh = true;
+      btn.textContent = 'есть свежие данные';
+      btn.classList.add('fresh');
+      return true;
+    }
+  } catch(e){}
+  return false;
+}
+let pollTimer = null;
+function poll(ms){
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => { if (await checkVersion()) clearInterval(pollTimer); }, ms);
+}
+checkVersion();
+poll(180000);
+
+document.getElementById('share').onclick = async () => {
+  const url = location.href;
+  if (navigator.share) { try { await navigator.share({title:'FBS '+(M.brand||''), url}); return; } catch(e){} }
+  try { await navigator.clipboard.writeText(url); document.getElementById('share').textContent='скопировано';
+        setTimeout(()=>document.getElementById('share').textContent='ссылка', 1500); } catch(e){}
+};
+
+/* ---------- заметки ---------- */
+const notes = [];
+if (!D.orders.length) notes.push(['info',
+  'По бренду <b>'+esc(M.brand)+'</b> заказов FBS пока нет. Страница уже подключена к кабинету и'
+  + ' наполнится сама, как только пойдут первые заказы: карточек бренда в кабинете — ' + M.cards
+  + '. Очередь сборки по всему кабинету сейчас — ' + num(M.cabinetQueue) + ' заданий.']);
+if (K.overdue) notes.push(['crit',
+  '<b>'+K.overdue+'</b> ' + plural(K.overdue,'заказ','заказа','заказов') + ' просрочены по сроку сборки — их нужно собрать и поставить в поставку в первую очередь.']);
+else if (K.soon) notes.push(['', '<b>'+K.soon+'</b> ' + plural(K.soon,'заказ','заказа','заказов') + ' с дедлайном меньше чем через ' + M.warnH + ' ч.']);
+if (M.caughtUp === false) notes.push(['info',
+  'Догоняю историю заказов кабинета — часть старых заказов ещё не разобрана, номера поставок у них появятся в ближайшие прогоны.']);
+document.getElementById('notes').innerHTML = notes.map(([cls,t]) =>
+  '<div class="flag '+cls+'"><span>'+t+'</span></div>').join('');
+
+function plural(n,a,b,c){ const m=n%100, k=n%10;
+  if(m>=11&&m<=14) return c; if(k===1) return a; if(k>=2&&k<=4) return b; return c; }
+
+/* ---------- KPI ---------- */
+const kpis = [
+  ['В очереди сборки', num(K.queue),
+     K.tightestH==null ? 'заданий нет'
+     : K.tightestH < 0 ? 'самый старый просрочен на '+hh(-K.tightestH)
+     : 'ближайший дедлайн через '+hh(K.tightestH), K.queue? 'hero':''],
+  ['Просрочено', num(K.overdue), 'дедлайн — создан + '+M.deadlineH+' ч', K.overdue? 'crit':''],
+  ['Горит', num(K.soon), 'меньше '+M.warnH+' ч до дедлайна', K.soon? 'warn':''],
+  ['В поставках', num(K.inSupply), 'собрано, ещё не принято WB', ''],
+  ['Принято WB', num(K.accepted), 'отсканировано на приёмке', ''],
+  ['Выкуплено', num(K.sold), 'дошло до покупателя', K.sold? 'good':''],
+  ['Остаток FBS', num(M.stockTotal||0), (M.stockWarehouses||0) + ' ' + plural(M.stockWarehouses||0,'склад','склада','складов') + ' с остатком', ''],
+  ['Заказов за 24 ч', num(K.d1), 'за 7 дней — '+num(K.d7), ''],
+  ['Медиана сборки', K.medianAssemblyH!=null? hh(K.medianAssemblyH) : '—', 'от заказа до поставки', ''],
+];
+document.getElementById('kpis').innerHTML = kpis.map(([l,v,n,c]) =>
+  '<div class="kpi '+c+'"><div class="lab">'+l+'</div><div class="val">'+v+'</div><div class="note">'+n+'</div></div>').join('');
+
+function hh(h){
+  if (h==null) return '—';
+  const neg = h < 0; const t = Math.abs(h);
+  const d = Math.floor(t/24), hr = Math.floor(t%24), mn = Math.round((t%1)*60);
+  let s = d ? d+' д '+hr+' ч' : (hr ? hr+' ч '+String(mn).padStart(2,'0')+' мин' : mn+' мин');
+  return (neg?'−':'')+s;
+}
+
+/* ---------- таймер сборки ---------- */
+const pending = D.orders.filter(o => o.pending);
+document.getElementById('tmrsub').textContent =
+  'Дедлайн считается как момент заказа плюс ' + M.deadlineH + ' часов. Часы идут в реальном времени, данные обновляются раз в час.';
+let tmrFilter = 'all';
+document.querySelectorAll('#tmrfilter button').forEach(b => b.onclick = () => {
+  tmrFilter = b.dataset.f;
+  document.querySelectorAll('#tmrfilter button').forEach(x => x.setAttribute('aria-pressed', x===b));
+  drawTimer();
+});
+
+function drawTimer(){
+  let rows = pending;
+  if (tmrFilter === 'overdue') rows = rows.filter(o => o.overdue);
+  if (tmrFilter === 'soon') rows = rows.filter(o => o.soon);
+  const tb = document.querySelector('#tmr tbody');
+  tb.innerHTML = rows.map(o => {
+    const dl = o.deadlineAt ? new Date(o.deadlineAt).getTime() : null;
+    return '<tr data-dl="'+(dl||'')+'" data-h="'+(o.deadlineH||0)+'">'
+      + '<td class="l">'+artCell(o)+'</td>'
+      + '<td class="l">'+o.id+'</td>'
+      + '<td class="l">'+esc(o.warehouse)+'</td>'
+      + '<td class="l">'+esc(o.office||'—')+'</td>'
+      + '<td>'+fmtDT(o.createdAt)+'</td>'
+      + '<td>'+fmtDT(o.deadlineAt)+'</td>'
+      + '<td class="left"><span class="tmr"></span><span class="bar"><i></i></span></td>'
+      + '<td class="l"><span class="pill '+o.stageKey+'">'+esc(o.stage)+'</span></td>'
+      + '<td>'+rub(o.price)+'</td></tr>';
+  }).join('');
+  document.getElementById('tmrcount').textContent = rows.length + ' ' + plural(rows.length,'задание','задания','заданий');
+  document.getElementById('tmrempty').innerHTML = rows.length ? '' :
+    '<div class="empty"><b>Пусто</b>Нет заданий в этой выборке.</div>';
+  document.querySelector('#tmr').style.display = rows.length ? '' : 'none';
+  tick();
+}
+
+function tick(){
+  const now = Date.now();
+  document.querySelectorAll('#tmr tbody tr').forEach(tr => {
+    const dl = +tr.dataset.dl, span = tr.querySelector('.tmr'), bar = tr.querySelector('.bar i');
+    if (!dl) { span.textContent = '—'; return; }
+    const leftH = (dl - now) / 3600e3, total = +tr.dataset.h || 48;
+    span.textContent = (leftH < 0 ? 'просрочен на ' : '') + hh(leftH < 0 ? -leftH : leftH);
+    span.className = 'tmr ' + (leftH < 0 ? 'crit' : leftH < M.warnH ? 'warn' : 'ok');
+    const pct = Math.max(0, Math.min(100, (leftH / total) * 100));
+    bar.style.width = pct + '%';
+    bar.className = leftH < 0 ? 'crit' : leftH < M.warnH ? 'warn' : '';
+  });
+}
+setInterval(tick, 1000);
+
+function artCell(o){
+  const img = o.photo ? '<img class="thumb" src="'+esc(o.photo)+'" loading="lazy" alt="">' : '';
+  return '<span class="art">'+img+'<span><b>'+esc(o.article||'—')+'</b>'
+    + '<span>'+esc(o.subject||'')+(o.nmId? ' · '+o.nmId : '')+'</span></span></span>';
+}
+drawTimer();
+
+/* ---------- по артикулам ---------- */
+const tbA = document.querySelector('#arts tbody');
+tbA.innerHTML = D.articles.map(a =>
+  '<tr><td class="l">'+artCell(a)+'</td>'
+  + '<td>'+num(a.queue)+'</td>'
+  + '<td'+(a.overdue?' style="color:var(--crit);font-weight:640"':'')+'>'+num(a.overdue)+'</td>'
+  + '<td>'+num(a.supply)+'</td><td>'+num(a.accepted)+'</td><td>'+num(a.sold)+'</td>'
+  + '<td>'+num(a.cancel)+'</td><td>'+num(a.d1)+'</td><td>'+num(a.d7)+'</td><td>'+num(a.d30)+'</td>'
+  + '<td><b>'+num(a.total)+'</b></td><td>'+num(a.stock||0)+'</td></tr>').join('');
+document.getElementById('artsempty').innerHTML = D.articles.length ? '' :
+  '<div class="empty"><b>Заказов ещё не было</b>Как только по бренду пойдут заказы, здесь появится разбивка по артикулам.</div>';
+document.querySelector('#arts').style.display = D.articles.length ? '' : 'none';
+
+/* ---------- остатки ---------- */
+const stk = D.stocks || [];
+document.querySelector('#stk tbody').innerHTML = stk.map(w => {
+  const items = w.items.map(i => esc(i.article)+' · '+esc(i.techSize||'—')+' — '+i.amount).join(' · ');
+  return '<tr><td class="l">'+esc(w.warehouse)+'</td><td class="l">'+esc(w.cargo||'—')+'</td>'
+    + '<td><b>'+num(w.total)+'</b></td><td class="l trunc" title="'+esc(items)+'">'+items+'</td></tr>';
+}).join('');
+document.getElementById('stkempty').innerHTML = stk.length ? '' :
+  '<div class="empty"><b>Остатка на складах продавца нет</b>Как только остаток бренда будет проставлен на склад, он появится здесь с разбивкой по артикулам и размерам.</div>';
+document.querySelector('#stk').style.display = stk.length ? '' : 'none';
+
+/* ---------- поставки ---------- */
+const tbS = document.querySelector('#sups tbody');
+tbS.innerHTML = D.supplies.map(s =>
+  '<tr><td class="l">'+esc(s.id)+'</td><td class="l">'+esc(s.name||'—')+'</td>'
+  + '<td>'+fmtDT(s.createdAt)+'</td><td>'+fmtDT(s.closedAt)+'</td><td>'+fmtDT(s.scanDt)+'</td>'
+  + '<td class="l"><span class="pill '+s.stateKey+'">'+esc(s.state)+'</span></td>'
+  + '<td>'+num(s.orders)+'</td><td class="l trunc" title="'+esc(s.articles.join(', '))+'">'+esc(s.articles.slice(0,3).join(', '))
+  + (s.articles.length>3 ? ' +'+(s.articles.length-3) : '')+'</td></tr>').join('');
+document.getElementById('supsempty').innerHTML = D.supplies.length ? '' :
+  '<div class="empty"><b>Поставок нет</b>Поставка появится здесь, когда в неё попадёт хотя бы один заказ бренда.</div>';
+document.querySelector('#sups').style.display = D.supplies.length ? '' : 'none';
+
+/* ---------- все заказы ---------- */
+const stages = [['all','все']].concat(
+  [...new Set(D.orders.map(o=>o.stageKey))].map(k => [k, (D.orders.find(o=>o.stageKey===k)||{}).stage]));
+let stageF = 'all';
+document.getElementById('stagefilter').innerHTML = stages.map(([k,l],i) =>
+  '<button data-s="'+k+'" aria-pressed="'+(i===0)+'">'+esc(l)+'</button>').join('');
+document.querySelectorAll('#stagefilter button').forEach(b => b.onclick = () => {
+  stageF = b.dataset.s;
+  document.querySelectorAll('#stagefilter button').forEach(x => x.setAttribute('aria-pressed', x===b));
+  drawAll();
+});
+document.getElementById('q').oninput = drawAll;
+
+function drawAll(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  let rows = D.orders;
+  if (stageF !== 'all') rows = rows.filter(o => o.stageKey === stageF);
+  if (q) rows = rows.filter(o => (o.article||'').toLowerCase().includes(q)
+      || String(o.id).includes(q) || (o.supplyId||'').toLowerCase().includes(q));
+  document.querySelector('#all tbody').innerHTML = rows.slice(0, 800).map(o =>
+    '<tr><td class="l">'+artCell(o)+'</td><td class="l">'+o.id+'</td><td>'+fmtDT(o.createdAt)+'</td>'
+    + '<td class="l"><span class="pill '+o.stageKey+'">'+esc(o.stage)+'</span></td>'
+    + '<td class="l">'+esc(o.supplierStatusRu)+'</td><td class="l">'+esc(o.wbStatusRu)+'</td>'
+    + '<td class="l">'+esc(o.supplyId||'—')+'</td><td class="l">'+esc(o.warehouse)+'</td>'
+    + '<td>'+rub(o.price)+'</td></tr>').join('');
+  document.getElementById('allcount').textContent = rows.length + ' ' + plural(rows.length,'заказ','заказа','заказов')
+    + (rows.length > 800 ? ' · показаны первые 800' : '');
+  document.getElementById('allempty').innerHTML = rows.length ? '' :
+    '<div class="empty"><b>Ничего не найдено</b>Поменяйте фильтр или запрос.</div>';
+  document.querySelector('#all').style.display = rows.length ? '' : 'none';
+}
+drawAll();
+
+/* ---------- по дням ---------- */
+const days = D.days || [];
+const mx = Math.max(1, ...days.map(d => d.orders));
+document.getElementById('spark').innerHTML = days.map(d =>
+  '<div style="height:'+Math.max(2, d.orders/mx*100)+'%" title="'+d.date+': '+d.orders+'"></div>').join('');
+document.getElementById('sparkx').innerHTML = days.map((d,i) =>
+  '<div>'+(days.length<=14 || i%3===0 ? d.date.slice(8)+'.'+d.date.slice(5,7) : '')+'</div>').join('');
+document.getElementById('sparksub').textContent = days.length
+  ? 'Максимум за день — ' + mx + '. Период: ' + days[0].date + ' — ' + days[days.length-1].date + '.'
+  : 'Данных по дням пока нет.';
+
+document.getElementById('foot').innerHTML =
+  'Отслеживается заказов: ' + num(M.tracked) + ' · артикулов в отчёте: ' + num(M.articles)
+  + ' · карточек бренда в кабинете: ' + num(M.cards)
+  + ' · остаток FBS: ' + num(M.stockTotal||0) + ' шт'
+  + ' · очередь сборки всего кабинета: ' + num(M.cabinetQueue)
+  + '. Источник — API продавца Wildberries, только модель FBS (склад продавца).';
+</script>
+</body>
+</html>
