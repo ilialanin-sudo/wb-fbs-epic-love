@@ -391,6 +391,21 @@ FIN_KEEP = ("rrdId", "srid", "nmId", "vendorCode", "subjectName", "sellerOperNam
             "saleDt", "orderDt", "rrDate", "dateFrom", "dateTo")
 
 
+FIN_OPS_BY_NM = ("Доставка",)          # строки логистики FBS: свой srid, сшиваем по nmId
+def fin_keep(r, keep_srids, keep_nms):
+    """Что оставляем из финотчёта.
+
+    Строки «Доставка» берём целиком: их мало (около тысячи в день на весь
+    кабинет), а именно в них лежит логистика FBS — и сшить их по srid
+    невозможно, у них собственный srid возврата.
+    """
+    if (r.get("sellerOperName") or "") in FIN_OPS_BY_NM:
+        return True
+    if keep_nms and r.get("nmId") in keep_nms:
+        return True
+    return keep_srids is not None and r.get("srid") in keep_srids
+
+
 def pull_finance(token, keep_srids=None, keep_nms=None):
     """Недельными окнами: одним куском WB отдаёт сотни мегабайт.
 
@@ -410,8 +425,7 @@ def pull_finance(token, keep_srids=None, keep_nms=None):
             if not batch:
                 break
             for r in batch:
-                if keep_srids is not None and r.get("srid") not in keep_srids \
-                        and not (keep_nms and r.get("nmId") in keep_nms):
+                if keep_srids is not None and not fin_keep(r, keep_srids, keep_nms):
                     continue
                 out.append({k: r.get(k) for k in FIN_KEEP})
             rrdid = max(r["rrdId"] for r in batch)
@@ -432,56 +446,94 @@ def fnum(v):
         return 0.0
 
 
-def cohort_rates(orders_raw, sold_srids, fin_by_srid, lo, hi, tag):
-    """Ставки по когорте СЫРЫХ заказов (со всеми, кто потом отменится и не выкупится).
+def orders_window(orders, nms, lo, hi):
+    """Сырые FBS-заказы окна — знаменатель всех ставок на заказ."""
+    out = [r for r in orders if r.get("warehouseType") == FBS and lo <= r["date"][:10] <= hi]
+    if nms is not None:
+        out = [r for r in out if r.get("nmId") in nms]
+    return out
 
-    Ключевой момент: у WB isCancel=true ставится и на невыкуп, поэтому у свежего
-    дня отмен почти нет, а у зрелой когорты их 55–60 %. Считать экономику можно
-    только от сырого заказа — иначе свежий день завышен вдвое.
+
+def buyout_block(orders, sold, nms, lo, hi, tag):
+    """Выкуп по когорте СЫРЫХ заказов — со всеми, кто потом отменится.
+
+    У WB isCancel=true ставится и на невыкуп, поэтому у свежего дня отмен почти
+    нет, а у дозревшей когорты их больше половины. Считать выкуп можно только
+    от сырого заказа, иначе свежий день завышен вдвое.
     """
-    cohort = [r for r in orders_raw if lo <= r["date"][:10] <= hi]
-    n = len(cohort)
+    rows = orders_window(orders, nms, lo, hi)
+    n = len(rows)
+    if not n:
+        return None
+    bought = sum(1 for r in rows if r["srid"] in sold)
+    return dict(tag=tag, window=f"{lo}—{hi}", orders_raw=n, bought=bought,
+                buyout_of_raw=round(bought / n, 4),
+                avg_order_price=round(sum(fnum(r.get("priceWithDisc")) for r in rows) / n, 2))
+
+
+def cost_block(fin, nms, lo, hi, n, tag):
+    """Что WB списал на заказы окна — по паре «артикул + дата заказа».
+
+    Сшивать по srid нельзя. Логистика FBS приходит строкой «Доставка» с
+    собственным srid вида mp.<хеш>.r — это номер возврата, с srid заказа он не
+    сшивается вообще, и попытка склеить по нему даёт логистику в копейки вместо
+    75–130 ₽ за штуку. Зато в строке есть nmId и orderDt — день исходного
+    заказа, — и этого достаточно: ставка нужна на заказ, а не на конкретный srid.
+
+    Знаменатель — сырые заказы окна, включая отменённые: WB платят и за
+    доставку покупателю, и за обратный путь невыкупа.
+    """
     if not n:
         return None
     a = collections.defaultdict(float)
-    covered = 0
-    for r in cohort:
-        f = fin_by_srid.get(r["srid"])
-        if not f:
+    for r in fin:
+        if nms is not None and r.get("nmId") not in nms:
             continue
-        covered += 1
-        for k, v in f.items():
-            a[k] += v
-    bought = sum(1 for r in cohort if r["srid"] in sold_srids)
+        d = str(r.get("orderDt") or "")[:10]
+        if not (lo <= d <= hi):
+            continue
+        op = r.get("sellerOperName") or ""
+        if op == "Доставка":
+            if not str(r.get("deliveryMethod") or "").upper().startswith("FBS"):
+                continue
+            a["log"] += fnum(r.get("deliveryService")) + fnum(r.get("rebillLogisticCost"))
+            a["dev"] += fnum(r.get("deliveryAmount"))
+            a["ret"] += fnum(r.get("returnAmount"))
+            continue
+        a["acc"] += fnum(r.get("paidAcceptance"))
+        a["pen"] += fnum(r.get("penalty"))
+        a["sto"] += fnum(r.get("paidStorage"))
+        if op == "Продажа":
+            a["retail"] += fnum(r.get("retailPriceWithDisc"))
+            a["customer"] += fnum(r.get("retailAmount"))
+            a["forpay"] += fnum(r.get("forPay"))
+            a["qty"] += fnum(r.get("quantity"))
+        elif op == "Возврат":
+            a["retail"] -= fnum(r.get("retailPriceWithDisc"))
+            a["customer"] -= fnum(r.get("retailAmount"))
+            a["forpay"] -= fnum(r.get("forPay"))
+            a["qty"] -= fnum(r.get("quantity"))
     retail = a["retail"]
     return dict(
         tag=tag, window=f"{lo}—{hi}", orders_raw=n,
-        covered=covered, coverage=round(covered / n, 3),
-        bought=bought, buyout_of_raw=round(bought / n, 4),
-        retail=round(retail, 2), customer=round(a["customer"], 2), forpay=round(a["forpay"], 2),
-        payout_share=round(a["forpay"] / retail, 4) if retail else None,
-        spp_share=round(1 - a["customer"] / retail, 4) if retail else None,
         logistics=round(a["log"], 2),
         logistics_per_order=round(a["log"] / n, 2),
-        logistics_fwd_per_order=round((a["log_fwd"] + a["log_mix"] / 2) / n, 2),
-        logistics_back_per_order=round((a["log_back"] + a["log_mix"] / 2) / n, 2),
-        logistics_back_share=round((a["log_back"] + a["log_mix"] / 2) / a["log"], 4) if a["log"] else 0,
-        events_per_order=round((a["dev"] + a["ret"]) / n, 3),
         deliveries=int(a["dev"]), returns=int(a["ret"]),
+        events_per_order=round((a["dev"] + a["ret"]) / n, 3),
         handling_per_order=round(a["acc"] / n, 2),
         penalty_per_order=round(a["pen"] / n, 2),
         storage_per_order=round(a["sto"] / n, 2),
-        avg_order_price=round(sum(fnum(r.get("priceWithDisc")) for r in cohort) / n, 2),
+        sale_qty=int(a["qty"]),
+        retail=round(retail, 2), forpay=round(a["forpay"], 2),
+        payout_share=round(a["forpay"] / retail, 4) if retail else None,
+        spp_share=round(1 - a["customer"] / retail, 4) if retail else None,
     )
 
 
 def payout_block(fin, srids, tag):
-    """Сколько из цены продавца реально доходит до продавца — по продажам,
-    без привязки к когорте: это отношение, а не ставка на заказ.
-
-    Считаем отдельно для FBS и FBW, потому что СПП WB компенсирует по-разному:
-    на FBW доплачивает сверх того, что заплатил покупатель, на FBS почти нет.
-    """
+    """Сколько из цены продавца доходит до продавца — по продажам, без когорты:
+    это отношение, а не ставка на заказ. Строки «Продажа» и «Возврат» приходят
+    с srid заказа, поэтому здесь сшивка по srid работает."""
     rows = fin if srids is None else [r for r in fin if r.get("srid") in srids]
     sale = [r for r in rows if r["sellerOperName"] == "Продажа"]
     ret = [r for r in rows if r["sellerOperName"] == "Возврат"]
@@ -508,153 +560,109 @@ def payout_block(fin, srids, tag):
     )
 
 
-def index_finance(fin):
-    """Финотчёт → срез по srid: сколько денег прошло по каждому заказу."""
-    idx = collections.defaultdict(lambda: collections.defaultdict(float))
-    for r in fin:
-        srid = r.get("srid")
-        if not srid:
-            continue
-        a = idx[srid]
-        cost = fnum(r.get("deliveryService")) + fnum(r.get("rebillLogisticCost"))
-        dev, ret = fnum(r.get("deliveryAmount")), fnum(r.get("returnAmount"))
-        a["log"] += cost
-        a["dev"] += dev
-        a["ret"] += ret
-        # строка логистики относится либо к доставке покупателю, либо к обратному
-        # плечу при невыкупе или возврате — раскладываем, чтобы их было видно врозь
-        if ret > 0 and dev == 0:
-            a["log_back"] += cost
-        elif dev > 0 and ret == 0:
-            a["log_fwd"] += cost
-        else:
-            a["log_mix"] += cost
-        a["acc"] += fnum(r.get("paidAcceptance"))
-        a["pen"] += fnum(r.get("penalty"))
-        a["sto"] += fnum(r.get("paidStorage"))
-        op = r.get("sellerOperName")
-        if op == "Продажа":
-            a["retail"] += fnum(r.get("retailPriceWithDisc"))
-            a["customer"] += fnum(r.get("retailAmount"))
-            a["forpay"] += fnum(r.get("forPay"))
-            a["qty"] += fnum(r.get("quantity"))
-        elif op == "Возврат":
-            # в отчёте WB возвраты записаны положительными числами и вычитаются
-            a["retail"] -= fnum(r.get("retailPriceWithDisc"))
-            a["customer"] -= fnum(r.get("retailAmount"))
-            a["forpay"] -= fnum(r.get("forPay"))
-            a["qty"] -= fnum(r.get("quantity"))
-    return idx
-
-
 def rates_from_finance(fin, orders_all, sales_all, nms=None):
-    """Когортные ставки. Порядок источников: сначала собственная выборка бренда,
-    потом FBS всего кабинета, потом кабинет целиком.
+    """Ставки юнит-экономики. Каждая берётся оттуда, где её вообще можно измерить.
 
-    Разделение неслучайно. Выкупу нужна дозревшая когорта — у молодого бренда её
-    просто нет, и приходится одалживать у кабинета. А логистика и приёмка — это
-    физика конкретного товара: у куртки литраж втрое больше, чем у футболки,
-    поэтому их берём по бренду, как только наберётся хоть какая-то выборка,
-    даже когда выкуп ещё чужой. Источник каждой ставки виден в дашборде.
+    Выкуп — только по дозревшей когорте, и у молодого бренда её нет, поэтому он
+    одалживается у FBS всего кабинета. Логистика и приёмка — физика конкретного
+    товара, их берём по бренду, как только в отчёте появятся его строки. Доля к
+    перечислению — отношение по продажам, ей когорта не нужна.
+    Источник каждой ставки записан рядом и виден в дашборде.
     """
     if not fin:
         return dict(payout_share=None, error="финотчёт пуст",
                     updated_at=NOW.isoformat(timespec="seconds"))
-    idx = index_finance(fin)
     covered_to = max((r.get("dateTo") or "")[:10] for r in fin)
     cov_d = datetime.date.fromisoformat(covered_to)
-    lo = (cov_d - datetime.timedelta(days=int(os.environ.get("COHORT_LO", "21")))).isoformat()
+    fbs_all = [r for r in orders_all if r.get("warehouseType") == FBS]
+    if not fbs_all:
+        return dict(payout_share=None, error="нет FBS-заказов",
+                    updated_at=NOW.isoformat(timespec="seconds"))
+    first = min(r["date"][:10] for r in fbs_all)
+    lo = max((cov_d - datetime.timedelta(days=int(os.environ.get("COHORT_LO", "21")))).isoformat(),
+             first)
     hi = (cov_d - datetime.timedelta(days=int(os.environ.get("COHORT_HI", "8")))).isoformat()
+    if hi < lo:
+        hi = max(lo, (cov_d - datetime.timedelta(days=1)).isoformat())
 
     sold = {r["srid"] for r in sales_all if str(r.get("saleID", "")).startswith("S")}
-    fbs_orders = [r for r in orders_all if r.get("warehouseType") == FBS]
-    brand_orders = by_brand(fbs_orders, nms) if BRANDS else []
     label = ", ".join(sorted(BRANDS)).upper() if BRANDS else ""
+    # артикулы, у которых в окне вообще были FBS-заказы: это и есть «кабинет»
+    # для ставок — по ним и считаем, чтобы в знаменатель не попал чистый FBW
+    cab_nms = {r.get("nmId") for r in orders_window(fbs_all, None, lo, hi)}
 
-    whole = cohort_rates(orders_all, sold, idx, lo, hi, "кабинет целиком")
-    fbs = cohort_rates(fbs_orders, sold, idx, lo, hi, "FBS кабинета")
-    brand = cohort_rates(brand_orders, sold, idx, lo, hi, f"FBS бренда {label}") \
-        if brand_orders else None
+    n_cab = len(orders_window(fbs_all, cab_nms, lo, hi))
+    n_brand = len(orders_window(fbs_all, nms, lo, hi)) if BRANDS else 0
 
-    MIN_ORD, MIN_COV = int(os.environ.get("MIN_COHORT", "150")), 0.6
+    cost_brand = cost_block(fin, nms, lo, hi, n_brand, f"FBS бренда {label}") if n_brand else None
+    cost_cab = cost_block(fin, cab_nms, lo, hi, n_cab, "FBS кабинета")
+    buy_brand = buyout_block(fbs_all, sold, nms, lo, hi, f"FBS бренда {label}") if BRANDS else None
+    buy_cab = buyout_block(fbs_all, sold, cab_nms, lo, hi, "FBS кабинета")
+
     MIN_BRAND = int(os.environ.get("MIN_COHORT_BRAND", "60"))
-    use_brand = bool(brand and brand["orders_raw"] >= MIN_BRAND
-                     and brand["coverage"] >= MIN_COV and brand["payout_share"])
-    use_fbs = bool(fbs and fbs["orders_raw"] >= MIN_ORD and fbs["coverage"] >= MIN_COV
-                   and fbs["payout_share"])
-    src = brand if use_brand else (fbs if use_fbs else whole)
-    if use_brand:
-        source = f"FBS бренда {label}"
-    elif use_fbs:
-        source = f"FBS кабинета — у бренда {label} когорта ещё не дозрела" if BRANDS else "FBS"
-    else:
-        source = "кабинет целиком (FBS ещё не дозрел)"
+    MIN_LOGI = int(os.environ.get("MIN_LOGI_EVENTS", "20"))
+    use_brand_cost = bool(cost_brand and cost_brand["deliveries"] >= MIN_LOGI)
+    cost = cost_brand if use_brand_cost else cost_cab
+    cost_src = cost["tag"] if cost else None
+    if cost_brand and not use_brand_cost:
+        cost_src = (f"FBS кабинета — по бренду {label} пока "
+                    f"{cost_brand['deliveries']} оплаченных доставок из нужных {MIN_LOGI}")
 
-    # логистика и приёмка — по бренду, как только наберётся выборка:
-    # это габариты товара, а не общая ставка кабинета
-    logi_src = src["tag"] if src else None
-    logi = src
-    if not use_brand and brand and brand["covered"] >= int(os.environ.get("MIN_LOGI_BRAND", "25")):
-        logi = brand
-        logi_src = f"FBS бренда {label}, {brand['covered']} заказов в финотчёте"
+    use_brand_buy = bool(buy_brand and buy_brand["orders_raw"] >= MIN_BRAND)
+    buy = buy_brand if use_brand_buy else buy_cab
+    source = (f"FBS бренда {label}" if use_brand_buy else
+              (f"FBS кабинета — у бренда {label} когорта ещё не дозрела" if BRANDS
+               else "FBS кабинета"))
 
-    # предварительный, ещё не дозревший срез — просто чтобы видеть тренд
-    prev_src = brand_orders if BRANDS else fbs_orders
-    preview = None
-    if prev_src:
-        f_lo = min(r["date"][:10] for r in prev_src)
-        preview = cohort_rates(prev_src, sold, idx, f_lo, hi,
-                               (f"бренд {label}" if BRANDS else "FBS") + ", предварительно")
-
-    fbs_srids = {r["srid"] for r in fbs_orders} | \
+    fbs_srids = {r["srid"] for r in fbs_all} | \
         {r["srid"] for r in sales_all if r.get("warehouseType") == FBS}
-    brand_srids = ({r["srid"] for r in brand_orders} |
+    brand_srids = ({r["srid"] for r in by_brand(fbs_all, nms)} |
                    {r["srid"] for r in by_brand(sales_all, nms)
                     if r.get("warehouseType") == FBS}) if BRANDS else set()
     pay_brand = payout_block(fin, brand_srids, f"FBS бренда {label}") if brand_srids else None
-    pay_fbs_cab = payout_block(fin, fbs_srids, "FBS кабинета")
-    pay_whole = payout_block(fin, None, "кабинет целиком")
+    pay_cab = payout_block(fin, fbs_srids, "FBS кабинета")
     MIN_PAY = int(os.environ.get("MIN_PAYOUT_QTY", "30"))
-    # aggregate.py читает payout_fbs — кладём туда лучшее, что есть по бренду
-    pay_fbs = pay_brand if (pay_brand and pay_brand["qty"] >= MIN_PAY) else pay_fbs_cab
-    use_pay_fbs = bool(pay_fbs and pay_fbs["qty"] >= MIN_PAY)
+    pay = pay_brand if (pay_brand and pay_brand["qty"] >= MIN_PAY) else pay_cab
+    use_pay = bool(pay and pay["qty"] >= MIN_PAY)
 
+    # сколько дней проходит от заказа до возврата товара на склад при невыкупе
     lag = []
-    ord_date = {r["srid"]: r["date"][:10] for r in (brand_orders or fbs_orders)}
     for r in fin:
-        if fnum(r.get("returnAmount")) > 0 and r.get("srid") in ord_date and r.get("rrDate"):
+        if nms and r.get("nmId") not in nms:
+            continue
+        if fnum(r.get("returnAmount")) > 0 and r.get("orderDt") and r.get("rrDate"):
             try:
                 dd = (datetime.date.fromisoformat(str(r["rrDate"])[:10])
-                      - datetime.date.fromisoformat(ord_date[r["srid"]])).days
+                      - datetime.date.fromisoformat(str(r["orderDt"])[:10])).days
             except Exception:
                 continue
             if 0 < dd < 60:
                 lag.append(dd)
     lag.sort()
-    return_lag = dict(qty=len(lag),
-                      median=lag[len(lag) // 2] if lag else None,
+    return_lag = dict(qty=len(lag), median=lag[len(lag) // 2] if lag else None,
                       p25=lag[int(len(lag) * .25)] if lag else None,
                       p75=lag[int(len(lag) * .75)] if lag else None) if lag else None
 
     return dict(
         return_lag=return_lag,
-        payout_share=(pay_fbs if use_pay_fbs else src)["payout_share"] if (src or pay_fbs) else None,
-        payout_source=(f"{pay_fbs['tag']}, {pay_fbs['qty']} шт" if use_pay_fbs
-                       else "кабинет целиком (FBS-продаж мало)"),
-        payout_fbs=pay_fbs, payout_whole=pay_whole, payout_brand=pay_brand,
-        payout_fbs_cabinet=pay_fbs_cab,
-        payout_fbs_qty=(pay_fbs or {}).get("qty", 0),
-        spp_share=src["spp_share"] if src else None,
-        logistics_per_order=logi["logistics_per_order"] if logi else None,
-        logistics_fwd_per_order=logi["logistics_fwd_per_order"] if logi else None,
-        logistics_back_per_order=logi["logistics_back_per_order"] if logi else None,
-        logistics_source=logi_src,
-        handling_per_order=logi["handling_per_order"] if logi else None,
-        penalty_per_order=logi["penalty_per_order"] if logi else None,
-        buyout_of_raw=src["buyout_of_raw"] if src else None,
+        payout_share=pay["payout_share"] if use_pay else None,
+        payout_source=(f"{pay['tag']}, {pay['qty']} шт продаж" if use_pay
+                       else "продаж в финотчёте пока мало"),
+        payout_fbs=pay, payout_brand=pay_brand, payout_whole=pay_cab,
+        payout_fbs_qty=(pay or {}).get("qty", 0),
+        spp_share=(pay or {}).get("spp_share"),
+        logistics_per_order=cost["logistics_per_order"] if cost else None,
+        logistics_fwd_per_order=None, logistics_back_per_order=None,
+        logistics_events_per_order=cost["events_per_order"] if cost else None,
+        logistics_source=cost_src,
+        handling_per_order=cost["handling_per_order"] if cost else None,
+        penalty_per_order=cost["penalty_per_order"] if cost else None,
+        storage_per_order=cost["storage_per_order"] if cost else None,
+        buyout_of_raw=buy["buyout_of_raw"] if buy else None,
+        buyout_source=buy["tag"] if buy else None,
         source=source,
-        cohort_whole=whole, cohort_fbs=fbs, cohort_brand=brand,
-        cohort_fbs_preview=preview,
+        cohort_whole=buy_cab, cohort_fbs=buy_cab, cohort_brand=buy_brand,
+        cost_brand=cost_brand, cost_cabinet=cost_cab,
         covered_to=covered_to,
         updated_at=NOW.isoformat(timespec="seconds"),
     )
@@ -774,6 +782,7 @@ def main():
             keep = {r["srid"] for r in orders[key] if r.get("warehouseType") == FBS} | \
                    {r["srid"] for r in sales[key] if r.get("warehouseType") == FBS}
             fin = pull_finance(tok, keep_srids=keep, keep_nms=NMS[key])
+            save(f"fin_{key}", fin)
             state[key] = rates_from_finance(fin, orders[key], sales[key], NMS[key])
             log(f"    ставки: до продавца доходит {state[key]['payout_share']}, "
                 f"логистика/заказ {state[key]['logistics_per_order']} "
