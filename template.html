@@ -176,7 +176,12 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
     </div>
     <div style="display:flex;gap:8px;align-items:flex-start">
       <div class="stamp"><b id="stamp"></b><span id="stamp2"></span></div>
-      <button class="btn" id="rebuild" title="Запустить пересборку данных на GitHub">обновить</button>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+        <button class="btn" id="rebuild" title="Проверить, не собралась ли свежая версия">обновить</button>
+        <a class="tiny" id="runlink" target="_blank" rel="noopener"
+           href="https://github.com/ilialanin-sudo/wb-fbs-epic-love/actions/workflows/dashboard.yml"
+           style="text-decoration:underline">пересобрать вручную</a>
+      </div>
       <button class="iconbtn" id="share" title="Поделиться ссылкой">⇪</button>
       <button class="iconbtn" id="theme" title="Светлая / тёмная тема">◐</button>
     </div>
@@ -1704,7 +1709,6 @@ function saveXlsx(filename, sheet, header, rows){
    кнопка сначала перечитывает свежую опубликованную версию, а если та совпала
    с текущей, открывает страницу запуска сборки: там пересборка стартует одним
    нажатием, но только у того, у кого есть доступ к репозиторию. */
-const REPO_RUN = "https://github.com/ilialanin-sudo/wb-fbs-epic-love/actions/workflows/dashboard.yml";
 $("#rebuild").onclick = async () => {
   const b = $("#rebuild"); const was = b.textContent;
   b.disabled = true; b.textContent = "проверяю…";
@@ -1713,10 +1717,10 @@ $("#rebuild").onclick = async () => {
     const txt = await r.text();
     const m = txt.match(/"generated_at":"([^"]+)"/);
     if(m && m[1] !== D.generated_at){ location.reload(); return; }
-    toast("Свежее пока нет — открываю запуск сборки");
-    window.open(REPO_RUN, "_blank", "noopener");
+    const age = Math.round((Date.now() - new Date(D.generated_at).getTime())/60000);
+    toast(`Это самая свежая сборка, ей ${age} мин. Следующая — в течение 10 минут`);
   }catch(e){
-    window.open(REPO_RUN, "_blank", "noopener");
+    toast("Не дотянулся до сервера — проверь связь");
   }finally{
     b.disabled = false; b.textContent = was;
   }
