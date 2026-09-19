@@ -69,6 +69,7 @@ h2{font-size:15px;font-weight:640;margin:0 0 2px;letter-spacing:-.005em}
 .sup{border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--surface)}
 .sup .qr{display:block;width:100%;max-width:230px;margin:10px auto 8px;background:#fff;
   border:1px solid var(--border);border-radius:8px;padding:8px;cursor:zoom-in}
+.sup .qr svg{display:block;width:100%;height:auto}
 .sup h3{font-size:14px;margin:0 0 2px;letter-spacing:-.01em}
 .sup .row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0;
   border-bottom:1px dashed var(--border)}
@@ -76,7 +77,8 @@ h2{font-size:15px;font-weight:640;margin:0 0 2px;letter-spacing:-.005em}
 .qrbox{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;
   justify-content:center;z-index:99;padding:24px}
 .qrbox.on{display:flex}
-.qrbox img{max-width:min(560px,92vw);max-height:86vh;background:#fff;padding:16px;border-radius:12px}
+.qrbox #qrbig{background:#fff;padding:18px;border-radius:12px;max-width:min(560px,92vw)}
+.qrbox #qrbig svg{display:block;width:100%;height:auto}
 .pick-hot{color:#b9770e;font-weight:600}
 
 /* KPI */
@@ -437,9 +439,9 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
     <div class="card">
       <div class="sec-h">
         <div><h2>Открытые поставки с EPIC LOVE</h2>
-          <p class="tiny">QR — тот самый код поставки, который клеят на коробку и показывают на приёмке.
-            Нажми на код, чтобы открыть крупно и отсканировать с экрана. Поставка общая на кабинет:
-            рядом с количеством бренда стоит, сколько заданий в ней всего.</p></div>
+          <p class="tiny">В QR поставки у WB зашит ровно её номер, поэтому код рисуется прямо здесь —
+            он такой же, как в личном кабинете. Нажми на него, чтобы открыть крупно и отсканировать с экрана.
+            Поставка общая на кабинет: рядом с количеством бренда стоит, сколько заданий в ней всего.</p></div>
       </div>
       <div class="sups" id="work-sups"></div>
     </div>
@@ -460,7 +462,7 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
     </div>
   </div><!-- /work-body -->
 
-  <div class="qrbox" id="qrbox"><img id="qrbig" alt="QR поставки"></div>
+  <div class="qrbox" id="qrbox"><div id="qrbig"></div></div>
 
   <div id="fbw-body" style="display:none">
     <div class="card">
@@ -1416,6 +1418,148 @@ function pickRender(){
     list.map(x=>[x.a, x.z, x.qty, x.late]));
 }
 
+/* Генератор QR прямо в странице: WB кодирует в QR поставки ровно её номер,
+   поэтому картинку из API тянуть незачем — рисуем сама. Уровень коррекции M,
+   версии 1–4, режим alphanumeric (номер поставки — только A–Z, цифры и дефис),
+   с запасным байтовым режимом. Больше 4-й версии тут не нужно: в неё влезает
+   вчетверо больше, чем длина любого номера. */
+const QR_AL = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+const QR_V = { /* версия: [всего кодовых слов, EC на блок, блоков] — уровень M */
+  1:[26,10,1], 2:[44,16,1], 3:[70,26,1], 4:[100,18,2] };
+const QR_ALIGN = {1:[], 2:[6,18], 3:[6,22], 4:[6,26]};
+const QR_FMT = ["101010000010010","101000100100101","101111001111100","101101101001011",
+                "100010111111001","100000011001110","100111110010111","100101010100000"];
+
+const GF_E=new Uint8Array(512), GF_L=new Uint8Array(256);
+(()=>{ let x=1; for(let i=0;i<255;i++){ GF_E[i]=x; GF_L[x]=i; x<<=1; if(x&256) x^=0x11D; }
+       for(let i=255;i<512;i++) GF_E[i]=GF_E[i-255]; })();
+const gmul=(a,b)=> (a&&b) ? GF_E[GF_L[a]+GF_L[b]] : 0;
+
+function rsPoly(n){ let p=[1];
+  for(let i=0;i<n;i++){ const q=[...p,0];
+    for(let j=0;j<p.length;j++) q[j+1]^=gmul(p[j],GF_E[i]);
+    p=q; }
+  return p; }
+function rsEc(data,n){ const gen=rsPoly(n), res=new Array(data.length+n).fill(0);
+  data.forEach((v,i)=>res[i]=v);
+  for(let i=0;i<data.length;i++){ const c=res[i]; if(!c) continue;
+    for(let j=0;j<gen.length;j++) res[i+j]^=gmul(gen[j],c); }
+  return res.slice(data.length); }
+
+function qrBits(text){
+  const alnum = [...text].every(c=>QR_AL.indexOf(c)>=0);
+  const bits=[];
+  const push=(v,n)=>{ for(let i=n-1;i>=0;i--) bits.push((v>>i)&1); };
+  if(alnum){ push(0b0010,4); push(text.length,9);
+    for(let i=0;i<text.length;i+=2){
+      if(i+1<text.length) push(QR_AL.indexOf(text[i])*45+QR_AL.indexOf(text[i+1]),11);
+      else push(QR_AL.indexOf(text[i]),6); }
+  } else { const b=new TextEncoder().encode(text);
+    push(0b0100,4); push(b.length,8); b.forEach(x=>push(x,8)); }
+  return bits;
+}
+
+function qrMatrix(text){
+  const bits=qrBits(text);
+  let ver=0, cap=0;
+  for(const v of [1,2,3,4]){ const [tot,ec,nb]=QR_V[v]; const d=tot-ec*nb;
+    if(d*8 >= bits.length+4){ ver=v; cap=d; break; } }
+  if(!ver) return null;
+  const [tot,ecn,nb]=QR_V[ver];
+  for(let i=0;i<4 && bits.length<cap*8;i++) bits.push(0);
+  while(bits.length%8) bits.push(0);
+  const data=[]; for(let i=0;i<bits.length;i+=8){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i+j]; data.push(b); }
+  const pads=[0xEC,0x11]; let k=0; while(data.length<cap) data.push(pads[k++%2]);
+
+  const per=Math.floor(cap/nb), blocks=[], ecs=[];
+  for(let i=0;i<nb;i++){ const b=data.slice(i*per,(i+1)*per); blocks.push(b); ecs.push(rsEc(b,ecn)); }
+  const out=[];
+  for(let i=0;i<per;i++) blocks.forEach(b=>out.push(b[i]));
+  for(let i=0;i<ecn;i++) ecs.forEach(e=>out.push(e[i]));
+
+  const n=ver*4+17;
+  const m=Array.from({length:n},()=>new Array(n).fill(null));
+  const put=(r,c,v)=>{ if(r>=0&&r<n&&c>=0&&c<n) m[r][c]=v; };
+  const finder=(r,c)=>{ for(let i=-1;i<=7;i++) for(let j=-1;j<=7;j++){
+      const rr=r+i, cc=c+j; if(rr<0||rr>=n||cc<0||cc>=n) continue;
+      const on = (i>=0&&i<=6&&(j===0||j===6)) || (j>=0&&j<=6&&(i===0||i===6)) ||
+                 (i>=2&&i<=4&&j>=2&&j<=4);
+      put(rr,cc,on?1:0); } };
+  finder(0,0); finder(0,n-7); finder(n-7,0);
+  for(let i=8;i<n-8;i++){ put(6,i,i%2===0?1:0); put(i,6,i%2===0?1:0); }
+  const al=QR_ALIGN[ver];
+  al.forEach(r=>al.forEach(c=>{
+    if((r<9&&c<9)||(r<9&&c>n-10)||(r>n-10&&c<9)) return;
+    for(let i=-2;i<=2;i++) for(let j=-2;j<=2;j++)
+      put(r+i,c+j,(Math.max(Math.abs(i),Math.abs(j))!==1)?1:0); }));
+  put(n-8,8,1);                                   // тёмный модуль
+  for(let i=0;i<9;i++){ if(m[8][i]===null) put(8,i,0); if(m[i][8]===null) put(i,8,0); }
+  for(let i=0;i<8;i++){ if(m[8][n-1-i]===null) put(8,n-1-i,0); if(m[n-1-i][8]===null) put(n-1-i,8,0); }
+
+  const reserved = m.map(r=>r.map(v=>v!==null));
+  let bi=0; const stream=[];
+  out.forEach(b=>{ for(let i=7;i>=0;i--) stream.push((b>>i)&1); });
+  for(let col=n-1; col>0; col-=2){
+    if(col===6) col--;
+    for(let t=0;t<n;t++){
+      const up=((n-1-col)>>1)%2===0;
+      const row = up ? n-1-t : t;
+      for(const c of [col, col-1]){
+        if(reserved[row][c]) continue;
+        m[row][c] = bi<stream.length ? stream[bi++] : 0;
+      }
+    }
+  }
+
+  const maskFn=[ (r,c)=>(r+c)%2===0, (r,c)=>r%2===0, (r,c)=>c%3===0,
+    (r,c)=>(r+c)%3===0, (r,c)=>((r>>1)+Math.floor(c/3))%2===0,
+    (r,c)=>((r*c)%2+(r*c)%3)===0, (r,c)=>(((r*c)%2+(r*c)%3)%2)===0,
+    (r,c)=>(((r+c)%2+(r*c)%3)%2)===0 ];
+  let best=null, bestPen=Infinity;
+  for(let k2=0;k2<8;k2++){
+    const g=m.map(r=>r.slice());
+    for(let r=0;r<n;r++) for(let c=0;c<n;c++)
+      if(!reserved[r][c] && maskFn[k2](r,c)) g[r][c]^=1;
+    const f=QR_FMT[k2].split("").map(Number);
+    for(let i=0;i<=5;i++) g[8][i]=f[i];
+    g[8][7]=f[6]; g[8][8]=f[7]; g[7][8]=f[8];
+    for(let i=9;i<=14;i++) g[14-i][8]=f[i];
+    for(let i=0;i<=7;i++) g[n-1-i][8]=f[i];
+    for(let i=8;i<=14;i++) g[8][n-15+i]=f[i];
+    g[n-8][8]=1;
+    const p=penalty(g,n);
+    if(p<bestPen){ bestPen=p; best=g; }
+  }
+  return best;
+}
+
+function penalty(g,n){
+  let p=0;
+  const run=line=>{ let c=1,s=0;
+    for(let i=1;i<line.length;i++){ if(line[i]===line[i-1]) c++; else { if(c>=5) s+=c-2; c=1; } }
+    if(c>=5) s+=c-2; return s; };
+  for(let i=0;i<n;i++){ p+=run(g[i]); p+=run(g.map(r=>r[i])); }
+  for(let r=0;r<n-1;r++) for(let c=0;c<n-1;c++)
+    if(g[r][c]===g[r][c+1] && g[r][c]===g[r+1][c] && g[r][c]===g[r+1][c+1]) p+=3;
+  const pat=[1,0,1,1,1,0,1,0,0,0,0];
+  const hit=(line,i)=>pat.every((v,j)=>line[i+j]===v);
+  for(let i=0;i<n;i++){ const row=g[i], col=g.map(r=>r[i]);
+    for(let j=0;j+11<=n;j++){ if(hit(row,j)) p+=40; if(hit(col,j)) p+=40; } }
+  const dark=g.flat().filter(v=>v).length, tot=n*n;
+  p += Math.floor(Math.abs(dark*100/tot-50)/5)*10;
+  return p;
+}
+
+function qrSvg(text, px){
+  const m=qrMatrix(text);
+  if(!m) return "";
+  const n=m.length, q=4, size=n+q*2;
+  let d="";
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(m[r][c]) d+=`M${c+q} ${r+q}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${px||220}" height="${px||220}" shape-rendering="crispEdges">`
+    + `<rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
 /* --------------------------------------------------- вкладка «На сборке» */
 let WORKF = "all";
 
@@ -1436,8 +1580,7 @@ function workRender(){
   $("#work-sups").innerHTML = sups.length ? sups.map((s,i)=>`<div class="sup">
       <h3>${s.id}</h3>
       <div class="tiny">${s.name ? s.name+" · " : ""}создана ${dmy(String(s.created||"").slice(0,10))}</div>
-      ${s.qr ? `<img class="qr" data-qr="${i}" src="data:image/png;base64,${s.qr}" alt="QR поставки ${s.id}">`
-             : `<p class="tiny" style="margin:12px 0">QR подтянется следующим обновлением.</p>`}
+      <div class="qr" data-qr="${i}" title="Нажми, чтобы открыть крупно">${qrSvg(s.id, 230)}</div>
       <div class="row"><span>Заданий бренда</span><b>${fmt(s.qty)}${s.qty_all>s.qty?` из ${fmt(s.qty_all)}`:""}</b></div>
       <div class="row"><span>Сумма</span><b>${money(s.summ)}</b></div>
       <div class="row"><span>Просрочено</span><b class="${s.late?"pick-late":""}">${s.late?fmt(s.late):"—"}</b></div>
@@ -1447,8 +1590,11 @@ function workRender(){
     : `<p class="tiny">Открытых поставок с товаром бренда нет.</p>`;
 
   $("#work-sups").onclick = e => {
-    const img = e.target.closest("img[data-qr]");
-    if(img){ $("#qrbig").src = img.src; $("#qrbox").classList.add("on"); return; }
+    const box = e.target.closest("[data-qr]");
+    if(box){ const s2 = sups[+box.dataset.qr];
+      $("#qrbig").innerHTML = qrSvg(s2.id, 460)
+        + `<div style="text-align:center;font:600 15px/1.4 inherit;color:#000;margin-top:6px">${s2.id}</div>`;
+      $("#qrbox").classList.add("on"); return; }
     const b = e.target.closest("button[data-sup]");
     if(!b) return;
     const s = sups[+b.dataset.sup];

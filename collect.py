@@ -405,27 +405,7 @@ def pull_marketplace(token, days, nms=None):
                     tasks_all=sup_all.get(s["id"], 0))
                for s in supplies]
 
-    # QR открытых поставок, в которых есть товар бренда: именно этот код клеят
-    # на коробку и показывают на приёмке. Тянем только по открытым и только по
-    # тем, где бренд действительно есть — их единицы, страница не распухнет
-    mine = {o.get("supplyId") for o in orders if o.get("supplyId")}
-    qr_limit = int(os.environ.get("QR_LIMIT", "25"))
-    got = 0
-    for sp in sup_out:
-        if sp["done"] or sp["id"] not in mine or got >= qr_limit:
-            continue
-        try:
-            r = call(token, H_MP, f"/api/v3/supplies/{sp['id']}/barcode",
-                     query={"type": "png"}) or {}
-            if r.get("file"):
-                sp["qr"] = r["file"]
-                got += 1
-        except Exception as e:
-            log(f"    QR поставки {sp['id']} не получен: {e}")
-        time.sleep(0.3)
-
-    log(f"    сборка: {len(slim)} заданий, {len(supplies)} поставок, {len(whs)} складов, "
-        f"QR открытых поставок с брендом: {got}")
+    log(f"    сборка: {len(slim)} заданий, {len(supplies)} поставок, {len(whs)} складов")
     return dict(orders=slim,
                 warehouses=[dict(id=w.get("id"), name=w.get("name")) for w in whs],
                 supplies=sup_out)

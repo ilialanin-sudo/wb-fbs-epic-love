@@ -481,7 +481,6 @@ def picking(cab):
             qty=len(mine), qty_all=sp.get("tasks_all") or len(mine),
             summ=round(sum(r["price"] for r in mine), 2),
             late=sum(1 for r in mine if r["late"]),
-            qr=sp.get("qr") or "",
             arts=[dict(article=a, size=z, qty=q)
                   for (a, z), q in sorted(arts.items(), key=lambda x: -x[1])],
             ids=[r["id"] for r in mine],
