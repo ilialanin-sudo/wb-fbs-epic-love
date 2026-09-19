@@ -459,6 +459,35 @@ def picking(cab):
             in_supply=o.get("supplyId") in open_sup,
         ))
     rows.sort(key=lambda r: r["created"])
+
+    # Открытые поставки, в которых есть товар бренда. QR — тот самый код,
+    # который клеят на коробку: он лежит в данных картинкой, чтобы показать
+    # его с телефона на приёмке, не заходя в личный кабинет.
+    in_sup = collections.defaultdict(list)
+    for r in rows:
+        if r["supply"]:
+            in_sup[r["supply"]].append(r)
+    sups = []
+    for sp in (mp.get("supplies") or []):
+        if sp.get("done"):
+            continue
+        mine = in_sup.get(sp["id"]) or []
+        if not mine:
+            continue
+        arts = collections.Counter((r["article"], r["size"]) for r in mine)
+        sups.append(dict(
+            id=sp["id"], name=sp.get("name") or "",
+            created=sp.get("createdAt"),
+            qty=len(mine), qty_all=sp.get("tasks_all") or len(mine),
+            summ=round(sum(r["price"] for r in mine), 2),
+            late=sum(1 for r in mine if r["late"]),
+            qr=sp.get("qr") or "",
+            arts=[dict(article=a, size=z, qty=q)
+                  for (a, z), q in sorted(arts.items(), key=lambda x: -x[1])],
+            ids=[r["id"] for r in mine],
+        ))
+    sups.sort(key=lambda x: x["created"] or "")
+
     by_art = collections.defaultdict(lambda: collections.defaultdict(int))
     for r in rows:
         by_art[(r["article"], r["size"])]["qty"] += 1
@@ -467,7 +496,7 @@ def picking(cab):
     pack = [dict(article=a, size=z, qty=v["qty"], late=v["late"])
             for (a, z), v in sorted(by_art.items(), key=lambda x: -x[1]["qty"])]
     return dict(
-        rows=rows, by_art=pack, deadline_h=DEADLINE_H,
+        rows=rows, by_art=pack, supplies=sups, deadline_h=DEADLINE_H,
         total=len(rows),
         fresh=sum(1 for r in rows if r["state"] == "новое"),
         taken=sum(1 for r in rows if r["state"] == "в работе"),

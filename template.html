@@ -65,6 +65,18 @@ h2{font-size:15px;font-weight:640;margin:0 0 2px;letter-spacing:-.005em}
   padding:6px 12px;background:var(--ink);color:var(--surface);cursor:pointer;white-space:nowrap}
 .btn:hover{opacity:.88}
 .pick-late{color:#c0392b;font-weight:650}
+.sups{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.sup{border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--surface)}
+.sup .qr{display:block;width:100%;max-width:230px;margin:10px auto 8px;background:#fff;
+  border:1px solid var(--border);border-radius:8px;padding:8px;cursor:zoom-in}
+.sup h3{font-size:14px;margin:0 0 2px;letter-spacing:-.01em}
+.sup .row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0;
+  border-bottom:1px dashed var(--border)}
+.sup .row:last-of-type{border-bottom:0}
+.qrbox{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;
+  justify-content:center;z-index:99;padding:24px}
+.qrbox.on{display:flex}
+.qrbox img{max-width:min(560px,92vw);max-height:86vh;background:#fff;padding:16px;border-radius:12px}
 .pick-hot{color:#b9770e;font-weight:600}
 
 /* KPI */
@@ -402,7 +414,7 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
         </div>
       </div>
       <div class="scroll tbl-tall"><table><thead><tr>
-        <th>Дедлайн</th><th>Осталось</th><th>Статус</th><th>Артикул</th><th>Размер</th>
+        <th>Дедлайн</th><th>Осталось</th><th>Артикул</th><th>Размер</th>
         <th>Баркод</th><th>Склад</th><th>Цена, ₽</th><th>Заказ</th><th>Поставка</th>
       </tr></thead><tbody id="pick-rows"></tbody></table></div>
     </div>
@@ -418,6 +430,37 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
       </tr></thead><tbody id="pick-art"></tbody></table></div>
     </div>
   </div><!-- /pick-body -->
+
+  <div id="work-body" style="display:none">
+    <div class="kpis" id="work-kpi"></div>
+
+    <div class="card">
+      <div class="sec-h">
+        <div><h2>Открытые поставки с EPIC LOVE</h2>
+          <p class="tiny">QR — тот самый код поставки, который клеят на коробку и показывают на приёмке.
+            Нажми на код, чтобы открыть крупно и отсканировать с экрана. Поставка общая на кабинет:
+            рядом с количеством бренда стоит, сколько заданий в ней всего.</p></div>
+      </div>
+      <div class="sups" id="work-sups"></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-h">
+        <div><h2>Взято в работу</h2>
+          <p class="tiny">задания со статусом «на сборке»: часть уже разложена по открытым поставкам, часть ещё нет</p></div>
+        <div class="bar" style="gap:8px">
+          <div class="seg" id="work-filter"></div>
+          <button class="btn" id="work-xls">Выгрузить в Excel</button>
+        </div>
+      </div>
+      <div class="scroll tbl-tall"><table><thead><tr>
+        <th>Дедлайн</th><th>Осталось</th><th>Артикул</th><th>Размер</th><th>Баркод</th>
+        <th>Склад</th><th>Цена, ₽</th><th>Заказ</th><th>Поставка</th>
+      </tr></thead><tbody id="work-rows"></tbody></table></div>
+    </div>
+  </div><!-- /work-body -->
+
+  <div class="qrbox" id="qrbox"><img id="qrbig" alt="QR поставки"></div>
 
   <div id="fbw-body" style="display:none">
     <div class="card">
@@ -602,6 +645,7 @@ const NCAB = (D.cabinets||[]).length;
 const SUB_STG = "Заказы FBS по этапам пути: штуки, деньги по цене продавца и себестоимость — в тотале и по каждому артикулу.";
 const SUB_FBS = (NCAB>1 ? NCAB+" кабинета одного бренда. " : "")
   + "В расчёт идут только заказы со склада продавца — модель FBW исключена целиком.";
+const SUB_WORK = "Задания, взятые в сборку, и открытые поставки бренда с их QR-кодами. Снимок на момент последнего обновления страницы.";
 const SUB_PICK = "Снимок сборочных заданий на момент последнего обновления страницы: что нужно собрать и отгрузить. Периоды к этой вкладке не применяются.";
 const SUB_FBW = "Отдельный разрез по складу WB: сколько идёт доставка и сколько заказов выкупают. В юнит-экономику FBS ничего отсюда не попадает.";
 $("#sub").textContent = SUB_FBS;
@@ -634,7 +678,9 @@ if(!localStorage.getItem("wbtheme") && matchMedia("(prefers-color-scheme: dark)"
 
 /* --------------------------------------------------------------- сегменты */
 const TABS = [{key:"fbs", title:"FBS", note:"заказы и экономика"}]
-  .concat((D.picking && Object.keys(D.picking).length) ? [{key:"pick", title:"К сборке", note:"что собрать сейчас"}] : [])
+  .concat((D.picking && Object.keys(D.picking).length)
+          ? [{key:"pick", title:"Новые", note:"ещё не взяты в работу"},
+             {key:"work", title:"На сборке", note:"поставки и QR"}] : [])
   .concat((D.stage_meta && D.stages_total) ? [{key:"stg", title:"Этапы", note:"воронка и суммы"}] : [])
   .concat((D.fbw && Object.keys(D.fbw).length) ? [{key:"fbw", title:"FBW", note:"доставка и выкуп"}] : []);
 let TAB = "fbs";
@@ -1292,14 +1338,18 @@ WB объявил их временными.</p>
    поэтому внешних библиотек не нужно и страница остаётся самодостаточной. */
 let PICKF = "all";
 
-function pickSrc(){
+function pickSrc(state){
   const P = D.picking || {};
   const keys = (CAB==="total") ? Object.keys(P) : [CAB];
-  const rows = [];
-  keys.forEach(k => (P[k]?.rows || []).forEach(r => rows.push(r)));
+  const rows = [], sups = [];
+  keys.forEach(k => {
+    (P[k]?.rows || []).forEach(r => { if(!state || r.state===state) rows.push(r); });
+    (P[k]?.supplies || []).forEach(x => sups.push(x));
+  });
   rows.sort((a,b) => a.created < b.created ? -1 : 1);
+  sups.sort((a,b) => (a.created||"") < (b.created||"") ? -1 : 1);
   const dl = keys.map(k=>P[k]?.deadline_h).find(v=>v) || 48;
-  return {rows, dl};
+  return {rows, sups, dl};
 }
 
 function pickFiltered(rows){
@@ -1317,20 +1367,20 @@ function leftTxt(h){
 }
 
 function pickRender(){
-  const {rows, dl} = pickSrc();
+  const {rows, dl} = pickSrc("новое");
   $("#pick-dl").textContent = dl;
   const late = rows.filter(r=>r.late).length, hot = rows.filter(r=>r.hot).length;
-  const fresh = rows.filter(r=>r.state==="новое").length;
   const summ = rows.reduce((a,r)=>a+(r.price||0),0);
+  const arts = new Set(rows.map(r=>r.article)).size;
   $("#pick-kpi").innerHTML = [
-    ["Всего к сборке", fmt(rows.length), "заданий не уехало"],
-    ["Новые", fmt(fresh), "ещё не взяты в работу"],
+    ["Новых заданий", fmt(rows.length), "ещё не взяты в работу"],
     ["Просрочено", fmt(late), "дедлайн уже прошёл"],
     ["Горит", fmt(hot), "меньше 12 ч до дедлайна"],
+    ["Артикулов", fmt(arts), "разных позиций"],
     ["Сумма", money(summ), "по цене продавца"],
   ].map(([t,v,n])=>`<div class="kpi"><div class="k-t">${t}</div><div class="k-v">${v}</div><div class="k-n">${n}</div></div>`).join("");
 
-  const F = [["all","Все",rows.length],["new","Новые",fresh],["hot","Горит",hot],["late","Просрочено",late]];
+  const F = [["all","Все",rows.length],["hot","Горит",hot],["late","Просрочено",late]];
   $("#pick-filter").innerHTML = F.map(([k,t,n])=>
     `<button data-pf="${k}" aria-pressed="${k===PICKF}">${t}<small>${fmt(n)}</small></button>`).join("");
   $("#pick-filter").onclick = e => { const b=e.target.closest("button"); if(!b)return;
@@ -1340,11 +1390,10 @@ function pickRender(){
   $("#pick-rows").innerHTML = sel.length ? sel.map(r=>`<tr>
     <td>${dmy(String(r.due).slice(0,10))} ${String(r.due).slice(11,16)}</td>
     <td class="${r.late?"pick-late":(r.hot?"pick-hot":"")}">${leftTxt(r.left_h)}</td>
-    <td>${r.state}</td>
     <td>${r.article||"—"}${r.title?`<div class="tiny">${r.title}</div>`:""}</td>
     <td>${r.size||"—"}</td><td>${r.sku||"—"}</td><td>${r.wh||"—"}</td>
     <td>${money(r.price)}</td><td>${r.id}</td><td>${r.supply||"—"}</td></tr>`).join("")
-    : `<tr><td colspan="10" class="tiny">Пусто — в этой выборке заданий нет.</td></tr>`;
+    : `<tr><td colspan="9" class="tiny">Пусто — новых заданий нет.</td></tr>`;
 
   const agg = {};
   sel.forEach(r=>{ const k=(r.article||"")+"\u0000"+(r.size||"");
@@ -1357,14 +1406,84 @@ function pickRender(){
     : `<tr><td colspan="4" class="tiny">Пусто.</td></tr>`;
 
   const stamp = new Date().toISOString().slice(0,10);
-  $("#pick-xls").onclick = () => saveXlsx(`к сборке ${stamp}.xlsx`, "К сборке",
-    ["Дедлайн","Осталось, ч","Статус","Артикул","Название","Размер","Баркод","Склад","Цена, ₽","Заказ","Поставка","Дата заказа"],
-    sel.map(r=>[r.due.replace("T"," ").slice(0,16), r.left_h, r.state, r.article, r.title,
-                r.size, r.sku, r.wh, r.price, String(r.id), r.supply,
+  $("#pick-xls").onclick = () => saveXlsx(`новые задания ${stamp}.xlsx`, "Новые",
+    ["Дедлайн","Осталось, ч","Артикул","Название","Размер","Баркод","Склад","Цена, ₽","Заказ","Дата заказа"],
+    sel.map(r=>[r.due.replace("T"," ").slice(0,16), r.left_h, r.article, r.title,
+                r.size, r.sku, r.wh, r.price, String(r.id),
                 r.created.replace("T"," ").slice(0,16)]));
   $("#pick-xls2").onclick = () => saveXlsx(`к сборке по артикулам ${stamp}.xlsx`, "По артикулам",
     ["Артикул","Размер","Штук","Из них просрочено"],
     list.map(x=>[x.a, x.z, x.qty, x.late]));
+}
+
+/* --------------------------------------------------- вкладка «На сборке» */
+let WORKF = "all";
+
+function workRender(){
+  const {rows, sups} = pickSrc("в работе");
+  const late = rows.filter(r=>r.late).length;
+  const inSup = rows.filter(r=>r.supply).length;
+  const summ = rows.reduce((a,r)=>a+(r.price||0),0);
+  $("#work-kpi").innerHTML = [
+    ["В работе", fmt(rows.length), "заданий на сборке"],
+    ["Открытых поставок", fmt(sups.length), "с товаром бренда"],
+    ["Разложено в поставки", fmt(inSup), "из них, штук"],
+    ["Просрочено", fmt(late), "дедлайн уже прошёл"],
+    ["Сумма", money(summ), "по цене продавца"],
+  ].map(([t,v,n])=>`<div class="kpi"><div class="k-t">${t}</div><div class="k-v">${v}</div><div class="k-n">${n}</div></div>`).join("");
+
+  const stamp = new Date().toISOString().slice(0,10);
+  $("#work-sups").innerHTML = sups.length ? sups.map((s,i)=>`<div class="sup">
+      <h3>${s.id}</h3>
+      <div class="tiny">${s.name ? s.name+" · " : ""}создана ${dmy(String(s.created||"").slice(0,10))}</div>
+      ${s.qr ? `<img class="qr" data-qr="${i}" src="data:image/png;base64,${s.qr}" alt="QR поставки ${s.id}">`
+             : `<p class="tiny" style="margin:12px 0">QR подтянется следующим обновлением.</p>`}
+      <div class="row"><span>Заданий бренда</span><b>${fmt(s.qty)}${s.qty_all>s.qty?` из ${fmt(s.qty_all)}`:""}</b></div>
+      <div class="row"><span>Сумма</span><b>${money(s.summ)}</b></div>
+      <div class="row"><span>Просрочено</span><b class="${s.late?"pick-late":""}">${s.late?fmt(s.late):"—"}</b></div>
+      <div class="row"><span>Позиций</span><b>${fmt(s.arts.length)}</b></div>
+      <div style="margin-top:10px"><button class="btn" data-sup="${i}">Выгрузить состав</button></div>
+    </div>`).join("")
+    : `<p class="tiny">Открытых поставок с товаром бренда нет.</p>`;
+
+  $("#work-sups").onclick = e => {
+    const img = e.target.closest("img[data-qr]");
+    if(img){ $("#qrbig").src = img.src; $("#qrbox").classList.add("on"); return; }
+    const b = e.target.closest("button[data-sup]");
+    if(!b) return;
+    const s = sups[+b.dataset.sup];
+    saveXlsx(`поставка ${s.id} ${stamp}.xlsx`, "Состав поставки",
+      ["Артикул","Размер","Штук"], s.arts.map(a=>[a.article, a.size||"—", a.qty]));
+  };
+  $("#qrbox").onclick = () => $("#qrbox").classList.remove("on");
+
+  const F = [["all","Все",rows.length],
+             ["sup","В поставке",inSup],
+             ["nosup","Без поставки",rows.length-inSup],
+             ["late","Просрочено",late]];
+  $("#work-filter").innerHTML = F.map(([k,t,n])=>
+    `<button data-wf="${k}" aria-pressed="${k===WORKF}">${t}<small>${fmt(n)}</small></button>`).join("");
+  $("#work-filter").onclick = e => { const b=e.target.closest("button"); if(!b)return;
+    WORKF=b.dataset.wf; workRender(); };
+
+  let sel = rows;
+  if(WORKF==="sup") sel = rows.filter(r=>r.supply);
+  else if(WORKF==="nosup") sel = rows.filter(r=>!r.supply);
+  else if(WORKF==="late") sel = rows.filter(r=>r.late);
+
+  $("#work-rows").innerHTML = sel.length ? sel.map(r=>`<tr>
+    <td>${dmy(String(r.due).slice(0,10))} ${String(r.due).slice(11,16)}</td>
+    <td class="${r.late?"pick-late":(r.hot?"pick-hot":"")}">${leftTxt(r.left_h)}</td>
+    <td>${r.article||"—"}${r.title?`<div class="tiny">${r.title}</div>`:""}</td>
+    <td>${r.size||"—"}</td><td>${r.sku||"—"}</td><td>${r.wh||"—"}</td>
+    <td>${money(r.price)}</td><td>${r.id}</td><td>${r.supply||"—"}</td></tr>`).join("")
+    : `<tr><td colspan="9" class="tiny">Пусто — в этой выборке заданий нет.</td></tr>`;
+
+  $("#work-xls").onclick = () => saveXlsx(`на сборке ${stamp}.xlsx`, "На сборке",
+    ["Дедлайн","Осталось, ч","Артикул","Название","Размер","Баркод","Склад","Цена, ₽","Заказ","Поставка","Дата заказа"],
+    sel.map(r=>[r.due.replace("T"," ").slice(0,16), r.left_h, r.article, r.title,
+                r.size, r.sku, r.wh, r.price, String(r.id), r.supply,
+                r.created.replace("T"," ").slice(0,16)]));
 }
 
 /* ------------------------------------------- .xlsx прямо в браузере */
@@ -1461,22 +1580,26 @@ function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.tab===TAB));
   document.querySelectorAll("#cabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.cab===CAB));
   document.querySelectorAll("#pers button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.per===PER));
-  const isFbw = TAB==="fbw", isStg = TAB==="stg", isPick = TAB==="pick";
+  const isFbw = TAB==="fbw", isStg = TAB==="stg", isPick = TAB==="pick", isWork = TAB==="work";
   // FBW — отдельная вкладка: периоды и оговорка «только FBS» к ней не относятся
-  $("#fbs-body").style.display = (isFbw||isStg||isPick) ? "none" : "";
+  $("#fbs-body").style.display = (isFbw||isStg||isPick||isWork) ? "none" : "";
   $("#fbw-body").style.display = isFbw ? "" : "none";
   $("#stg-body").style.display = isStg ? "" : "none";
   $("#pick-body").style.display = isPick ? "" : "none";
-  // лист сборки — снимок «прямо сейчас», периоды к нему не применимы
-  $("#pers").style.display = isPick ? "none" : "";
+  $("#work-body").style.display = isWork ? "" : "none";
+  // листы сборки — снимок «прямо сейчас», периоды к ним не применимы
+  $("#pers").style.display = (isPick||isWork) ? "none" : "";
   $("#fbsonly").style.display = isFbw ? "none" : "";
   $("#ttl").textContent = isFbw ? "FBW · путь заказа и сроки доставки"
                 : isStg ? "FBS · суммы по этапам"
-                : isPick ? "FBS · что собрать сейчас"
+                : isPick ? "FBS · новые задания"
+                : isWork ? "FBS · на сборке и поставки"
                         : "FBS · заказы и юнит-экономика";
-  $("#sub").textContent = isFbw ? SUB_FBW : isStg ? SUB_STG : isPick ? SUB_PICK : SUB_FBS;
-  $("#rangebox").style.display = (PER==="range" && !isStg && !isPick) ? "inline-flex" : "none";
+  $("#sub").textContent = isFbw ? SUB_FBW : isStg ? SUB_STG
+                        : isPick ? SUB_PICK : isWork ? SUB_WORK : SUB_FBS;
+  $("#rangebox").style.display = (PER==="range" && !isStg && !isPick && !isWork) ? "inline-flex" : "none";
   if(isPick){ pickRender(); return; }
+  if(isWork){ workRender(); return; }
   if(isFbw){ fbwRender(); return; }
   if(isStg){ stgRender(); return; }
   flags(); kpis(); assembly(); retRender(); waterfall(); charts(); cohorts(); skus();

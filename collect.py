@@ -368,6 +368,9 @@ def pull_marketplace(token, days, nms=None):
         time.sleep(0.4)
 
     st = {s["id"]: s for s in statuses}
+    # сколько заданий в поставке всего, до фильтра по бренду: поставка общая
+    # на кабинет, и сборщику важно видеть, что в коробке едет не только он
+    sup_all = collections.Counter(o.get("supplyId") for o in orders if o.get("supplyId"))
     if nms is not None:
         before = len(orders)
         orders = [o for o in orders if o.get("nmId") in nms]
@@ -392,16 +395,40 @@ def pull_marketplace(token, days, nms=None):
     except Exception as e:
         log(f"    список складов недоступен: {e}")
         whs = []
-    log(f"    сборка: {len(slim)} заданий, {len(supplies)} поставок, {len(whs)} складов")
+    sup_out = [dict(id=s["id"], done=bool(s.get("done")),
+                    name=s.get("name") or "",
+                    createdAt=s.get("createdAt"), closedAt=s.get("closedAt"),
+                    # scanDt — момент, когда поставку приняли на стороне WB;
+                    # closedAt — когда её закрыл продавец. Разница важна для
+                    # коэффициента скорости, поэтому храним оба
+                    scanDt=s.get("scanDt"),
+                    tasks_all=sup_all.get(s["id"], 0))
+               for s in supplies]
+
+    # QR открытых поставок, в которых есть товар бренда: именно этот код клеят
+    # на коробку и показывают на приёмке. Тянем только по открытым и только по
+    # тем, где бренд действительно есть — их единицы, страница не распухнет
+    mine = {o.get("supplyId") for o in orders if o.get("supplyId")}
+    qr_limit = int(os.environ.get("QR_LIMIT", "25"))
+    got = 0
+    for sp in sup_out:
+        if sp["done"] or sp["id"] not in mine or got >= qr_limit:
+            continue
+        try:
+            r = call(token, H_MP, f"/api/v3/supplies/{sp['id']}/barcode",
+                     query={"type": "png"}) or {}
+            if r.get("file"):
+                sp["qr"] = r["file"]
+                got += 1
+        except Exception as e:
+            log(f"    QR поставки {sp['id']} не получен: {e}")
+        time.sleep(0.3)
+
+    log(f"    сборка: {len(slim)} заданий, {len(supplies)} поставок, {len(whs)} складов, "
+        f"QR открытых поставок с брендом: {got}")
     return dict(orders=slim,
                 warehouses=[dict(id=w.get("id"), name=w.get("name")) for w in whs],
-                supplies=[dict(id=s["id"], done=bool(s.get("done")),
-                               createdAt=s.get("createdAt"), closedAt=s.get("closedAt"),
-                               # scanDt — момент, когда поставку приняли на стороне WB;
-                               # closedAt — когда её закрыл продавец. Разница важна для
-                               # коэффициента скорости, поэтому храним оба
-                               scanDt=s.get("scanDt"))
-                          for s in supplies])
+                supplies=sup_out)
 
 
 # ----------------------------------------------------------------- финотчёт
