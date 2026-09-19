@@ -71,7 +71,7 @@ jobs:
         run: |
           git config user.name  "fbs-dashboard"
           git config user.email "actions@github.com"
-          git add -f state/rates.json
+          if [ -f state/rates.json ]; then git add -f state/rates.json; else echo "ставок ещё нет — финотчёт не собрался"; fi
           if ! git diff --cached --quiet; then
             git commit -m "ставки из финотчёта $(date -u +%F' '%H:%M) UTC"
             git pull --rebase --autostash || true

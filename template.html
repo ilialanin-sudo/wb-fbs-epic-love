@@ -61,6 +61,11 @@ h2{font-size:15px;font-weight:640;margin:0 0 2px;letter-spacing:-.005em}
   color:var(--ink);border-radius:6px;padding:4px 7px;color-scheme:inherit}
 #rgo{background:var(--ink)!important;color:var(--surface)!important;font-weight:600}
 .spacer{flex:1}
+.btn{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--border);border-radius:8px;
+  padding:6px 12px;background:var(--ink);color:var(--surface);cursor:pointer;white-space:nowrap}
+.btn:hover{opacity:.88}
+.pick-late{color:#c0392b;font-weight:650}
+.pick-hot{color:#b9770e;font-weight:600}
 
 /* KPI */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:1px;background:var(--border);
@@ -157,6 +162,7 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
     </div>
     <div style="display:flex;gap:8px;align-items:flex-start">
       <div class="stamp"><b id="stamp"></b><span id="stamp2"></span></div>
+      <button class="btn" id="rebuild" title="Запустить пересборку данных на GitHub">обновить</button>
       <button class="iconbtn" id="share" title="Поделиться ссылкой">⇪</button>
       <button class="iconbtn" id="theme" title="Светлая / тёмная тема">◐</button>
     </div>
@@ -382,6 +388,37 @@ details .body code{background:color-mix(in oklab,var(--ink) 7%,transparent);padd
     </div>
   </div><!-- /stg-body -->
 
+  <div id="pick-body" style="display:none">
+    <div class="kpis" id="pick-kpi"></div>
+
+    <div class="card">
+      <div class="sec-h">
+        <div><h2>Что собрать</h2>
+          <p class="tiny">Сборочные задания бренда, которые ещё не уехали в закрытой поставке.
+            Дедлайн — момент заказа плюс <span id="pick-dl">48</span> ч. Отменённые покупателем и брак не показываются.</p></div>
+        <div class="bar" style="gap:8px">
+          <div class="seg" id="pick-filter"></div>
+          <button class="btn" id="pick-xls">Выгрузить в Excel</button>
+        </div>
+      </div>
+      <div class="scroll tbl-tall"><table><thead><tr>
+        <th>Дедлайн</th><th>Осталось</th><th>Статус</th><th>Артикул</th><th>Размер</th>
+        <th>Баркод</th><th>Склад</th><th>Цена, ₽</th><th>Заказ</th><th>Поставка</th>
+      </tr></thead><tbody id="pick-rows"></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <div class="sec-h">
+        <div><h2>Сколько чего снять с полки</h2>
+          <p class="tiny">то же самое, свёрнутое по артикулу и размеру — с этим удобнее идти на склад</p></div>
+        <button class="btn" id="pick-xls2">Выгрузить в Excel</button>
+      </div>
+      <div class="scroll"><table><thead><tr>
+        <th>Артикул</th><th>Размер</th><th>Штук</th><th>Из них просрочено</th>
+      </tr></thead><tbody id="pick-art"></tbody></table></div>
+    </div>
+  </div><!-- /pick-body -->
+
   <div id="fbw-body" style="display:none">
     <div class="card">
       <div class="sec-h">
@@ -565,6 +602,7 @@ const NCAB = (D.cabinets||[]).length;
 const SUB_STG = "Заказы FBS по этапам пути: штуки, деньги по цене продавца и себестоимость — в тотале и по каждому артикулу.";
 const SUB_FBS = (NCAB>1 ? NCAB+" кабинета одного бренда. " : "")
   + "В расчёт идут только заказы со склада продавца — модель FBW исключена целиком.";
+const SUB_PICK = "Снимок сборочных заданий на момент последнего обновления страницы: что нужно собрать и отгрузить. Периоды к этой вкладке не применяются.";
 const SUB_FBW = "Отдельный разрез по складу WB: сколько идёт доставка и сколько заказов выкупают. В юнит-экономику FBS ничего отсюда не попадает.";
 $("#sub").textContent = SUB_FBS;
 $("#stamp").textContent = D.generated_human;
@@ -596,6 +634,7 @@ if(!localStorage.getItem("wbtheme") && matchMedia("(prefers-color-scheme: dark)"
 
 /* --------------------------------------------------------------- сегменты */
 const TABS = [{key:"fbs", title:"FBS", note:"заказы и экономика"}]
+  .concat((D.picking && Object.keys(D.picking).length) ? [{key:"pick", title:"К сборке", note:"что собрать сейчас"}] : [])
   .concat((D.stage_meta && D.stages_total) ? [{key:"stg", title:"Этапы", note:"воронка и суммы"}] : [])
   .concat((D.fbw && Object.keys(D.fbw).length) ? [{key:"fbw", title:"FBW", note:"доставка и выкуп"}] : []);
 let TAB = "fbs";
@@ -1245,22 +1284,199 @@ WB объявил их временными.</p>
 «14 дней» и «28 дней» — последние полные дни, сегодняшний в них не входит.</p>`;
 
 /* ---------------------------------------------------------------- рендер */
+
+/* ------------------------------------------------------------ лист сборки */
+/* Снимок «что собрать прямо сейчас». Ничего не считает по периодам: сборщику
+   нужен текущий список, а не аналитика. Выгрузка делается прямо в браузере —
+   .xlsx собирается из нескольких XML-файлов и упаковывается в zip без сжатия,
+   поэтому внешних библиотек не нужно и страница остаётся самодостаточной. */
+let PICKF = "all";
+
+function pickSrc(){
+  const P = D.picking || {};
+  const keys = (CAB==="total") ? Object.keys(P) : [CAB];
+  const rows = [];
+  keys.forEach(k => (P[k]?.rows || []).forEach(r => rows.push(r)));
+  rows.sort((a,b) => a.created < b.created ? -1 : 1);
+  const dl = keys.map(k=>P[k]?.deadline_h).find(v=>v) || 48;
+  return {rows, dl};
+}
+
+function pickFiltered(rows){
+  if(PICKF==="late") return rows.filter(r=>r.late);
+  if(PICKF==="hot")  return rows.filter(r=>r.hot);
+  if(PICKF==="new")  return rows.filter(r=>r.state==="новое");
+  return rows;
+}
+
+function leftTxt(h){
+  if(h==null) return "—";
+  const a = Math.abs(h), d = Math.floor(a/24), r = Math.round(a%24);
+  const t = d ? `${d} д ${r} ч` : `${r} ч`;
+  return h < 0 ? "просрочено на "+t : t;
+}
+
+function pickRender(){
+  const {rows, dl} = pickSrc();
+  $("#pick-dl").textContent = dl;
+  const late = rows.filter(r=>r.late).length, hot = rows.filter(r=>r.hot).length;
+  const fresh = rows.filter(r=>r.state==="новое").length;
+  const summ = rows.reduce((a,r)=>a+(r.price||0),0);
+  $("#pick-kpi").innerHTML = [
+    ["Всего к сборке", fmt(rows.length), "заданий не уехало"],
+    ["Новые", fmt(fresh), "ещё не взяты в работу"],
+    ["Просрочено", fmt(late), "дедлайн уже прошёл"],
+    ["Горит", fmt(hot), "меньше 12 ч до дедлайна"],
+    ["Сумма", money(summ), "по цене продавца"],
+  ].map(([t,v,n])=>`<div class="kpi"><div class="k-t">${t}</div><div class="k-v">${v}</div><div class="k-n">${n}</div></div>`).join("");
+
+  const F = [["all","Все",rows.length],["new","Новые",fresh],["hot","Горит",hot],["late","Просрочено",late]];
+  $("#pick-filter").innerHTML = F.map(([k,t,n])=>
+    `<button data-pf="${k}" aria-pressed="${k===PICKF}">${t}<small>${fmt(n)}</small></button>`).join("");
+  $("#pick-filter").onclick = e => { const b=e.target.closest("button"); if(!b)return;
+    PICKF=b.dataset.pf; pickRender(); };
+
+  const sel = pickFiltered(rows);
+  $("#pick-rows").innerHTML = sel.length ? sel.map(r=>`<tr>
+    <td>${dmy(String(r.due).slice(0,10))} ${String(r.due).slice(11,16)}</td>
+    <td class="${r.late?"pick-late":(r.hot?"pick-hot":"")}">${leftTxt(r.left_h)}</td>
+    <td>${r.state}</td>
+    <td>${r.article||"—"}${r.title?`<div class="tiny">${r.title}</div>`:""}</td>
+    <td>${r.size||"—"}</td><td>${r.sku||"—"}</td><td>${r.wh||"—"}</td>
+    <td>${money(r.price)}</td><td>${r.id}</td><td>${r.supply||"—"}</td></tr>`).join("")
+    : `<tr><td colspan="10" class="tiny">Пусто — в этой выборке заданий нет.</td></tr>`;
+
+  const agg = {};
+  sel.forEach(r=>{ const k=(r.article||"")+"\u0000"+(r.size||"");
+    (agg[k] = agg[k] || {a:r.article||"—", z:r.size||"—", qty:0, late:0}).qty++;
+    if(r.late) agg[k].late++; });
+  const list = Object.values(agg).sort((x,y)=>y.qty-x.qty);
+  $("#pick-art").innerHTML = list.length ? list.map(x=>
+    `<tr><td>${x.a}</td><td>${x.z}</td><td><b>${fmt(x.qty)}</b></td>
+     <td class="${x.late?"pick-late":""}">${x.late?fmt(x.late):"—"}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="tiny">Пусто.</td></tr>`;
+
+  const stamp = new Date().toISOString().slice(0,10);
+  $("#pick-xls").onclick = () => saveXlsx(`к сборке ${stamp}.xlsx`, "К сборке",
+    ["Дедлайн","Осталось, ч","Статус","Артикул","Название","Размер","Баркод","Склад","Цена, ₽","Заказ","Поставка","Дата заказа"],
+    sel.map(r=>[r.due.replace("T"," ").slice(0,16), r.left_h, r.state, r.article, r.title,
+                r.size, r.sku, r.wh, r.price, String(r.id), r.supply,
+                r.created.replace("T"," ").slice(0,16)]));
+  $("#pick-xls2").onclick = () => saveXlsx(`к сборке по артикулам ${stamp}.xlsx`, "По артикулам",
+    ["Артикул","Размер","Штук","Из них просрочено"],
+    list.map(x=>[x.a, x.z, x.qty, x.late]));
+}
+
+/* ------------------------------------------- .xlsx прямо в браузере */
+const CRCT = (()=>{ const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[i]=c>>>0; }
+  return t; })();
+function crc32(u8){ let c=0xFFFFFFFF;
+  for(let i=0;i<u8.length;i++) c = CRCT[(c^u8[i])&0xFF] ^ (c>>>8);
+  return (c^0xFFFFFFFF)>>>0; }
+const enc = str => new TextEncoder().encode(str);
+
+function zipStore(files){
+  const parts=[], dir=[]; let off=0;
+  const u16=n=>[n&255,(n>>8)&255], u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>>24)&255];
+  files.forEach(f=>{
+    const name=enc(f.name), data=f.data, crc=crc32(data);
+    const hdr=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0),
+      ...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0)]);
+    parts.push(hdr,name,data);
+    dir.push({name,crc,len:data.length,off});
+    off += hdr.length+name.length+data.length;
+  });
+  const cen=[]; let clen=0;
+  dir.forEach(d=>{
+    const h=new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0),
+      ...u32(d.crc),...u32(d.len),...u32(d.len),...u16(d.name.length),...u16(0),...u16(0),...u16(0),...u16(0),
+      ...u32(0),...u32(d.off)]);
+    cen.push(h,d.name); clen += h.length+d.name.length;
+  });
+  const end=new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(dir.length),...u16(dir.length),
+    ...u32(clen),...u32(off),...u16(0)]);
+  return new Blob([...parts,...cen,end],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+
+const xesc = v => String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function sheetXml(header, rows){
+  const cell=(v,c,r)=>{
+    const ref=colName(c)+r;
+    if(typeof v==="number" && isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+    return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+  };
+  const body=[`<row r="1">${header.map((h,i)=>cell(h,i,1)).join("")}</row>`]
+    .concat(rows.map((r,ri)=>`<row r="${ri+2}">${r.map((v,i)=>cell(v,i,ri+2)).join("")}</row>`));
+  const cols=header.map((h,i)=>`<col min="${i+1}" max="${i+1}" width="${Math.min(46,Math.max(11,String(h).length+6))}" customWidth="1"/>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>${cols}</cols><sheetData>${body.join("")}</sheetData></worksheet>`;
+}
+function colName(i){ let s=""; i++; while(i>0){ const m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=(i-m-1)/26; } return s; }
+
+function saveXlsx(filename, sheet, header, rows){
+  const nm = xesc(sheet).slice(0,31);
+  const files=[
+    {name:"[Content_Types].xml", data:enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`)},
+    {name:"_rels/.rels", data:enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`)},
+    {name:"xl/workbook.xml", data:enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${nm}" sheetId="1" r:id="rId1"/></sheets></workbook>`)},
+    {name:"xl/_rels/workbook.xml.rels", data:enc(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`)},
+    {name:"xl/worksheets/sheet1.xml", data:enc(sheetXml(header, rows))},
+  ];
+  const url=URL.createObjectURL(zipStore(files));
+  const a=document.createElement("a"); a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  toast("Файл выгружен");
+}
+
+/* ------------------------------------------------- принудительное обновление
+   Страница статическая и лежит на GitHub Pages, пересобирает её задача в
+   Actions. Токена на странице нет и быть не может — она публичная, — поэтому
+   кнопка сначала перечитывает свежую опубликованную версию, а если та совпала
+   с текущей, открывает страницу запуска сборки: там пересборка стартует одним
+   нажатием, но только у того, у кого есть доступ к репозиторию. */
+const REPO_RUN = "https://github.com/ilialanin-sudo/wb-fbs-epic-love/actions/workflows/dashboard.yml";
+$("#rebuild").onclick = async () => {
+  const b = $("#rebuild"); const was = b.textContent;
+  b.disabled = true; b.textContent = "проверяю…";
+  try{
+    const r = await fetch(location.pathname + "?t=" + Date.now(), {cache:"no-store"});
+    const txt = await r.text();
+    const m = txt.match(/"generated_at":"([^"]+)"/);
+    if(m && m[1] !== D.generated_at){ location.reload(); return; }
+    toast("Свежее пока нет — открываю запуск сборки");
+    window.open(REPO_RUN, "_blank", "noopener");
+  }catch(e){
+    window.open(REPO_RUN, "_blank", "noopener");
+  }finally{
+    b.disabled = false; b.textContent = was;
+  }
+};
+
 function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.tab===TAB));
   document.querySelectorAll("#cabs button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.cab===CAB));
   document.querySelectorAll("#pers button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.per===PER));
-  const isFbw = TAB==="fbw", isStg = TAB==="stg";
+  const isFbw = TAB==="fbw", isStg = TAB==="stg", isPick = TAB==="pick";
   // FBW — отдельная вкладка: периоды и оговорка «только FBS» к ней не относятся
-  $("#fbs-body").style.display = (isFbw||isStg) ? "none" : "";
+  $("#fbs-body").style.display = (isFbw||isStg||isPick) ? "none" : "";
   $("#fbw-body").style.display = isFbw ? "" : "none";
   $("#stg-body").style.display = isStg ? "" : "none";
-  $("#pers").style.display = "";
+  $("#pick-body").style.display = isPick ? "" : "none";
+  // лист сборки — снимок «прямо сейчас», периоды к нему не применимы
+  $("#pers").style.display = isPick ? "none" : "";
   $("#fbsonly").style.display = isFbw ? "none" : "";
   $("#ttl").textContent = isFbw ? "FBW · путь заказа и сроки доставки"
                 : isStg ? "FBS · суммы по этапам"
+                : isPick ? "FBS · что собрать сейчас"
                         : "FBS · заказы и юнит-экономика";
-  $("#sub").textContent = isFbw ? SUB_FBW : isStg ? SUB_STG : SUB_FBS;
-  $("#rangebox").style.display = (PER==="range" && !isStg) ? "inline-flex" : "none";
+  $("#sub").textContent = isFbw ? SUB_FBW : isStg ? SUB_STG : isPick ? SUB_PICK : SUB_FBS;
+  $("#rangebox").style.display = (PER==="range" && !isStg && !isPick) ? "inline-flex" : "none";
+  if(isPick){ pickRender(); return; }
   if(isFbw){ fbwRender(); return; }
   if(isStg){ stgRender(); return; }
   flags(); kpis(); assembly(); retRender(); waterfall(); charts(); cohorts(); skus();

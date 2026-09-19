@@ -401,6 +401,85 @@ def assembly(cab):
                 timing=timing, total_tasks=len(rows))
 
 
+# ------------------------------------------------------------ лист сборки
+# Раздел «Новые» и «На сборке» личного кабинета, только по бренду: что физически
+# нужно снять с полки прямо сейчас. Источник — сборочные задания marketplace-api,
+# статус берётся из /api/v3/orders/status и обновляется каждый час вместе со всем
+# остальным. Дедлайн WB отсчитывает от момента заказа.
+DEADLINE_H = int(CFG.get("assembly_deadline_h", 48))
+PICK_CANCEL = {"canceled", "canceled_by_client", "declined_by_client", "defect"}
+
+
+def picking(cab):
+    mp = load(f"mp_{cab}")
+    if not mp:
+        return None
+    nm = load(f"nm_{cab}") or {}
+    cards = {int(k): v for k, v in (nm.get("cards") or {}).items()}
+    wh = {w.get("id"): (w.get("name") or str(w.get("id")))
+          for w in (mp.get("warehouses") or []) if w.get("id")}
+    closed = {s["id"] for s in (mp.get("supplies") or []) if s.get("done")}
+    open_sup = {s["id"]: s for s in (mp.get("supplies") or []) if not s.get("done")}
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    rows = []
+    for o in (mp.get("orders") or []):
+        st = o.get("supplierStatus")
+        if st not in ("new", "confirm"):
+            continue
+        if o.get("supplyId") in closed:
+            continue
+        if o.get("wbStatus") in PICK_CANCEL:
+            continue
+        if not o.get("createdAt"):
+            continue
+        made = _ts(o["createdAt"])
+        due = made + datetime.timedelta(hours=DEADLINE_H)
+        left = (due - now).total_seconds() / 3600
+        c = cards.get(o.get("nmId")) or {}
+        rows.append(dict(
+            id=o.get("id"),
+            created=o["createdAt"],
+            due=due.isoformat(timespec="seconds"),
+            left_h=round(left, 2),
+            late=left < 0,
+            hot=0 <= left < 12,
+            state="новое" if st == "new" else "в работе",
+            nmId=o.get("nmId"),
+            article=o.get("article") or c.get("article") or "",
+            title=c.get("title") or "",
+            subject=c.get("subject") or "",
+            photo=c.get("photo") or "",
+            size=o.get("size") or "",
+            sku=o.get("sku") or "",
+            price=o.get("price") or 0,
+            wh=wh.get(o.get("warehouseId"), ""),
+            office=o.get("office") or "",
+            supply=o.get("supplyId") or "",
+            in_supply=o.get("supplyId") in open_sup,
+        ))
+    rows.sort(key=lambda r: r["created"])
+    by_art = collections.defaultdict(lambda: collections.defaultdict(int))
+    for r in rows:
+        by_art[(r["article"], r["size"])]["qty"] += 1
+        if r["late"]:
+            by_art[(r["article"], r["size"])]["late"] += 1
+    pack = [dict(article=a, size=z, qty=v["qty"], late=v["late"])
+            for (a, z), v in sorted(by_art.items(), key=lambda x: -x[1]["qty"])]
+    return dict(
+        rows=rows, by_art=pack, deadline_h=DEADLINE_H,
+        total=len(rows),
+        fresh=sum(1 for r in rows if r["state"] == "новое"),
+        taken=sum(1 for r in rows if r["state"] == "в работе"),
+        late=sum(1 for r in rows if r["late"]),
+        hot=sum(1 for r in rows if r["hot"]),
+        summ=round(sum(r["price"] for r in rows), 2),
+        in_supply=sum(1 for r in rows if r["in_supply"]),
+        oldest=rows[0]["created"] if rows else None,
+        generated=NOW.isoformat(timespec="seconds"),
+    )
+
+
 # ------------------------------------------------- возвраты продавцу на ПВЗ
 # Единственное место в API, где виден физический путь возврата: отчёт
 # «Возвраты и перемещения» (seller-analytics-api). В финотчёте такого события
@@ -952,12 +1031,16 @@ def cabinet(cab):
 
 # --------------------------------------------------------------------- сборка
 ASM = {}
+PICK = {}
 res = {}
 FBW_RAW = {}
 RET = {}
 for cab, title in CABS:
     if os.path.exists(os.path.join(DATA, f"orders_{cab}.json.gz")):
         res[cab] = cabinet(cab)
+        pk = picking(cab)
+        if pk:
+            PICK[cab] = pk
         a = assembly(cab)
         if a:
             ASM[cab] = a
@@ -1299,6 +1382,7 @@ out = dict(
     cohorts={c: res[c]["cohorts"] for c in res},
     cohorts_total=coh_total,
     assembly={c: ASM[c] for c in ASM},
+    picking={c: PICK[c] for c in PICK},
     assembly_total=asm_total,
     assembly_periods=[dict(key=k, label=l, days=b - h + 1) for k, l, b, h in ASM_PERIODS],
     returns={c: RET[c] for c in RET},

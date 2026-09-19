@@ -52,6 +52,8 @@ if isinstance(_bf, str):
     _bf = [_bf]
 BRANDS = {str(b).strip().lower() for b in (_bf or []) if str(b).strip()}
 H_CONTENT = "content-api.wildberries.ru"
+CARDS = {}      # nmId → карточка: артикул, название, предмет, картинка
+SIZES = {}      # chrtId и баркод → размер
 
 # start_date — день, раньше которого смотреть нечего (бренд ещё не продавался).
 # Обрезает и окно выгрузки, и глубину сборочных заданий с возвратами.
@@ -159,6 +161,8 @@ def brand_nmids(token):
     if not BRANDS:
         return None, {}
     nms, art, cur = set(), {}, {"limit": 100}
+    CARDS.clear()
+    SIZES.clear()
     for _ in range(60):
         r = call(token, H_CONTENT, "/content/v2/get/cards/list", method="POST",
                  body={"settings": {"cursor": cur, "filter": {"withPhoto": -1}}}) or {}
@@ -167,6 +171,18 @@ def brand_nmids(token):
             if str(c.get("brand") or "").strip().lower() in BRANDS:
                 nms.add(int(c["nmID"]))
                 art[int(c["nmID"])] = c.get("vendorCode")
+                ph = (c.get("photos") or [{}])[0]
+                CARDS[int(c["nmID"])] = dict(
+                    article=c.get("vendorCode"), title=c.get("title"),
+                    subject=c.get("subjectName"),
+                    photo=ph.get("tm") or ph.get("c246x328") or ph.get("square"))
+                # размер заказа приходит номером chrtId и баркодом —
+                # без этой таблицы сборщик не поймёт, какую вещь снимать с полки
+                for z in (c.get("sizes") or []):
+                    if z.get("chrtID"):
+                        SIZES[int(z["chrtID"])] = z.get("techSize") or z.get("wbSize") or ""
+                    for bc in (z.get("skus") or []):
+                        SIZES[str(bc)] = z.get("techSize") or z.get("wbSize") or ""
         c2 = r.get("cursor") or {}
         if len(cards) < 100:
             break
@@ -359,10 +375,16 @@ def pull_marketplace(token, days, nms=None):
     slim = []
     for o in orders:
         s = st.get(o["id"]) or {}
+        sku = (o.get("skus") or [None])[0]
+        chrt = o.get("chrtId")
         slim.append(dict(id=o["id"], createdAt=o.get("createdAt"), supplyId=o.get("supplyId"),
                          nmId=o.get("nmId"), article=o.get("article"),
                          warehouseId=o.get("warehouseId"),
                          price=(o.get("convertedPrice") or o.get("price") or 0) / 100,
+                         sku=sku, chrtId=chrt,
+                         size=SIZES.get(chrt) or SIZES.get(str(sku)) or "",
+                         office=(o.get("offices") or [None])[0],
+                         rid=o.get("rid"), cargo=o.get("cargoType"),
                          supplierStatus=s.get("supplierStatus"), wbStatus=s.get("wbStatus")))
     # склады продавца: их может быть несколько, и отгружают они по-разному
     try:
@@ -705,7 +727,19 @@ def main():
             return True
         return (NOW - prev).total_seconds() > max_age * 3600
 
-    log(f"окно заказов: {START} — {TODAY} (МСК {NOW:%H:%M})")
+    need_fin = any(stale(k) for k, _, _ in CABS)
+    # Ставки логистики считаются по дозревшей когорте: заказ должен успеть
+    # доехать и попасть в закрытую неделю финотчёта. От 1 сентября такой когорты
+    # ещё нет, поэтому в тот прогон, когда пересобирается финотчёт, заказы тянем
+    # глубже — только ради знаменателя ставок. На странице всё равно остаётся
+    # период с start_date: лишнее отрезается перед сохранением.
+    global START
+    disp_start = START
+    if need_fin:
+        deep = int(os.environ.get("RATES_WINDOW_DAYS", "45"))
+        START = min(START, TODAY - datetime.timedelta(days=deep - 1))
+    log(f"окно заказов: {START} — {TODAY} (МСК {NOW:%H:%M})"
+        + (f", на странице с {disp_start}" if START != disp_start else ""))
 
     if BRANDS:
         log("  бренд: " + ", ".join(sorted(BRANDS)).upper())
@@ -722,7 +756,9 @@ def main():
             log(f"    список карточек недоступен: {e}")
             nms, art = set(), {}
         NMS[key] = nms
-        save(f"nm_{key}", dict(nms=sorted(nms), articles={str(k): v for k, v in art.items()}))
+        save(f"nm_{key}", dict(nms=sorted(nms),
+                               articles={str(k): v for k, v in art.items()},
+                               cards={str(k): v for k, v in CARDS.items()}))
 
     # Выгружаем кабинет целиком, а на диск кладём только бренд: ставки
     # экономики считаются по кабинету, а весь дашборд — по бренду.
@@ -730,7 +766,8 @@ def main():
     for key, title, tok in CABS:
         log(f"  [{title}] заказы")
         orders[key] = pull_stat(tok, "/api/v1/supplier/orders", "заказы", START)
-        b = by_brand(orders[key], NMS[key])
+        b = [r for r in by_brand(orders[key], NMS[key])
+             if r.get("date", "")[:10] >= disp_start.isoformat()]
         log(f"    бренд: {len(b)} заказов из {len(orders[key])}")
         save(f"orders_{key}", b)
 
@@ -738,7 +775,8 @@ def main():
     for key, title, tok in CABS:
         log(f"  [{title}] продажи")
         sales[key] = pull_stat(tok, "/api/v1/supplier/sales", "продажи", START, key="saleID+srid")
-        b = by_brand(sales[key], NMS[key])
+        b = [r for r in by_brand(sales[key], NMS[key])
+             if r.get("date", "")[:10] >= disp_start.isoformat()]
         log(f"    бренд: {len(b)} строк из {len(sales[key])}")
         save(f"sales_{key}", b)
 
