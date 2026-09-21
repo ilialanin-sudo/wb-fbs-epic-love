@@ -1,117 +1,115 @@
 {
  "el": {
   "return_lag": null,
-  "payout_share": 0.6246,
-  "payout_source": "FBS кабинета, 6157 шт продаж",
+  "payout_share": 0.6263,
+  "payout_source": "FBS бренда EPIC LOVE, 53 шт продаж",
   "payout_fbs": {
-   "tag": "FBS кабинета",
-   "qty": 6157,
-   "payout_share": 0.6246,
-   "kept_share": 0.3754,
-   "spp_share": 0.3642,
-   "spp_compensated": 0.9825,
+   "tag": "FBS бренда EPIC LOVE",
+   "qty": 53,
+   "payout_share": 0.6263,
+   "kept_share": 0.3737,
+   "spp_share": 0.3947,
+   "spp_compensated": 1.0348,
    "base_commission_pct": 35.0,
    "weeks": [
-    "2026-08-17",
-    "2026-08-24",
-    "2026-08-31",
-    "2026-09-01",
-    "2026-09-07"
+    "2026-09-07",
+    "2026-09-14"
    ]
   },
   "payout_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "qty": 7,
-   "payout_share": 0.628,
-   "kept_share": 0.372,
-   "spp_share": 0.3907,
-   "spp_compensated": 1.0306,
+   "qty": 53,
+   "payout_share": 0.6263,
+   "kept_share": 0.3737,
+   "spp_share": 0.3947,
+   "spp_compensated": 1.0348,
    "base_commission_pct": 35.0,
    "weeks": [
-    "2026-09-07"
+    "2026-09-07",
+    "2026-09-14"
    ]
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 6157,
-   "payout_share": 0.6246,
-   "kept_share": 0.3754,
-   "spp_share": 0.3642,
-   "spp_compensated": 0.9825,
+   "qty": 7691,
+   "payout_share": 0.625,
+   "kept_share": 0.375,
+   "spp_share": 0.3716,
+   "spp_compensated": 0.9945,
    "base_commission_pct": 35.0,
    "weeks": [
-    "2026-08-17",
     "2026-08-24",
     "2026-08-31",
     "2026-09-01",
-    "2026-09-07"
+    "2026-09-07",
+    "2026-09-14"
    ]
   },
-  "payout_fbs_qty": 6157,
-  "spp_share": 0.3642,
-  "logistics_per_order": 11.73,
+  "payout_fbs_qty": 53,
+  "spp_share": 0.3947,
+  "logistics_per_order": 9.23,
   "logistics_fwd_per_order": null,
   "logistics_back_per_order": null,
-  "logistics_events_per_order": 0.177,
+  "logistics_events_per_order": 0.134,
   "logistics_source": "FBS кабинета — по бренду EPIC LOVE пока 0 оплаченных доставок из нужных 20",
-  "handling_per_order": 4.49,
-  "penalty_per_order": 8.69,
+  "handling_per_order": 4.67,
+  "penalty_per_order": 24.19,
   "storage_per_order": 0.0,
-  "buyout_of_raw": 0.3095,
-  "buyout_source": "FBS кабинета",
-  "source": "FBS кабинета — у бренда EPIC LOVE когорта ещё не дозрела",
+  "buyout_of_raw": 0.2461,
+  "buyout_source": "FBS бренда EPIC LOVE",
+  "source": "FBS бренда EPIC LOVE",
   "cohort_whole": {
    "tag": "FBS кабинета",
-   "window": "2026-08-23—2026-09-05",
-   "orders_raw": 15791,
-   "bought": 4888,
-   "buyout_of_raw": 0.3095
+   "window": "2026-08-30—2026-09-12",
+   "orders_raw": 13137,
+   "bought": 3950,
+   "buyout_of_raw": 0.3007
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
-   "window": "2026-08-23—2026-09-05",
-   "orders_raw": 15791,
-   "bought": 4888,
-   "buyout_of_raw": 0.3095
+   "window": "2026-08-30—2026-09-12",
+   "orders_raw": 13137,
+   "bought": 3950,
+   "buyout_of_raw": 0.3007
   },
   "cohort_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "window": "2026-08-23—2026-09-05",
-   "orders_raw": 22,
-   "bought": 6,
-   "buyout_of_raw": 0.2727
+   "window": "2026-08-30—2026-09-12",
+   "orders_raw": 191,
+   "bought": 47,
+   "buyout_of_raw": 0.2461
   },
   "cost_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "window": "2026-08-23—2026-09-05",
-   "orders_raw": 22,
+   "window": "2026-08-30—2026-09-12",
+   "orders_raw": 191,
    "logistics_per_order": 0.0,
    "deliveries": 0,
    "returns": 0,
    "events_per_order": 0.0,
    "handling_per_order": 0.0,
-   "penalty_per_order": 21.89,
+   "penalty_per_order": 345.95,
    "storage_per_order": 0.0,
-   "sale_qty": 3,
-   "payout_share": 0.6341,
-   "spp_share": 0.4108
+   "sale_qty": 44,
+   "payout_share": 0.6258,
+   "spp_share": 0.3928
   },
   "cost_cabinet": {
    "tag": "FBS кабинета",
-   "window": "2026-08-23—2026-09-05",
-   "orders_raw": 15791,
-   "logistics_per_order": 11.73,
-   "deliveries": 2788,
+   "window": "2026-08-30—2026-09-12",
+   "orders_raw": 13137,
+   "logistics_per_order": 9.23,
+   "deliveries": 1755,
    "returns": 0,
-   "events_per_order": 0.177,
-   "handling_per_order": 4.49,
-   "penalty_per_order": 8.69,
+   "events_per_order": 0.134,
+   "handling_per_order": 4.67,
+   "penalty_per_order": 24.19,
    "storage_per_order": 0.0,
-   "sale_qty": 4091,
-   "payout_share": 0.6246,
-   "spp_share": 0.3651
+   "sale_qty": 3535,
+   "payout_share": 0.6256,
+   "spp_share": 0.3834
   },
-  "covered_to": "2026-09-13",
-  "updated_at": "2026-09-20T14:40:36+03:00"
+  "covered_to": "2026-09-20",
+  "updated_at": "2026-09-21T16:56:44+03:00"
  }
 }
