@@ -33,14 +33,13 @@
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 8105,
-   "payout_share": 0.6255,
-   "kept_share": 0.3745,
-   "spp_share": 0.3836,
-   "spp_compensated": 1.0148,
+   "qty": 7666,
+   "payout_share": 0.6256,
+   "kept_share": 0.3744,
+   "spp_share": 0.3855,
+   "spp_compensated": 1.0181,
    "base_commission_pct": 35.0,
    "weeks": [
-    "2026-08-31",
     "2026-09-01",
     "2026-09-07",
     "2026-09-14",
@@ -55,42 +54,42 @@
   "logistics_events_per_order": 0.101,
   "logistics_source": "FBS кабинета — по бренду EPIC LOVE пока 0 оплаченных доставок из нужных 20",
   "handling_per_order": 3.69,
-  "penalty_per_order": 70.84,
+  "penalty_per_order": 70.87,
   "storage_per_order": 0.0,
-  "buyout_of_raw": 0.2413,
+  "buyout_of_raw": 0.2472,
   "buyout_source": "FBS бренда EPIC LOVE",
   "source": "FBS бренда EPIC LOVE",
   "cohort_whole": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10393,
-   "bought": 3525,
-   "buyout_of_raw": 0.3392
+   "orders_raw": 10399,
+   "bought": 3551,
+   "buyout_of_raw": 0.3415
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10393,
-   "bought": 3525,
-   "buyout_of_raw": 0.3392
+   "orders_raw": 10399,
+   "bought": 3551,
+   "buyout_of_raw": 0.3415
   },
   "cohort_brand": {
    "tag": "FBS бренда EPIC LOVE",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 630,
-   "bought": 152,
-   "buyout_of_raw": 0.2413
+   "orders_raw": 631,
+   "bought": 156,
+   "buyout_of_raw": 0.2472
   },
   "cost_brand": {
    "tag": "FBS бренда EPIC LOVE",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 630,
+   "orders_raw": 631,
    "logistics_per_order": 0.0,
    "deliveries": 0,
    "returns": 0,
    "events_per_order": 0.0,
    "handling_per_order": 0.86,
-   "penalty_per_order": 244.42,
+   "penalty_per_order": 244.04,
    "storage_per_order": 0.0,
    "sale_qty": 165,
    "payout_share": 0.6266,
@@ -99,19 +98,19 @@
   "cost_cabinet": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10393,
+   "orders_raw": 10399,
    "logistics_per_order": 7.13,
    "deliveries": 1046,
    "returns": 0,
    "events_per_order": 0.101,
    "handling_per_order": 3.69,
-   "penalty_per_order": 70.84,
+   "penalty_per_order": 70.87,
    "storage_per_order": 0.0,
    "sale_qty": 3246,
    "payout_share": 0.6264,
    "spp_share": 0.4018
   },
   "covered_to": "2026-09-27",
-  "updated_at": "2026-09-28T18:49:46+03:00"
+  "updated_at": "2026-09-29T16:25:36+03:00"
  }
 }
