@@ -33,11 +33,11 @@
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 6814,
+   "qty": 6567,
    "payout_share": 0.6259,
    "kept_share": 0.3741,
-   "spp_share": 0.3896,
-   "spp_compensated": 1.0255,
+   "spp_share": 0.3911,
+   "spp_compensated": 1.0279,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-09-01",
@@ -54,31 +54,31 @@
   "logistics_events_per_order": 0.1,
   "logistics_source": "FBS кабинета — по бренду EPIC LOVE пока 0 оплаченных доставок из нужных 20",
   "handling_per_order": 3.69,
-  "penalty_per_order": 70.72,
+  "penalty_per_order": 70.7,
   "storage_per_order": 0.0,
-  "buyout_of_raw": 0.2627,
+  "buyout_of_raw": 0.2674,
   "buyout_source": "FBS бренда EPIC LOVE",
   "source": "FBS бренда EPIC LOVE",
   "cohort_whole": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10422,
-   "bought": 3694,
-   "buyout_of_raw": 0.3544
+   "orders_raw": 10425,
+   "bought": 3719,
+   "buyout_of_raw": 0.3567
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10422,
-   "bought": 3694,
-   "buyout_of_raw": 0.3544
+   "orders_raw": 10425,
+   "bought": 3719,
+   "buyout_of_raw": 0.3567
   },
   "cohort_brand": {
    "tag": "FBS бренда EPIC LOVE",
    "window": "2026-09-06—2026-09-19",
    "orders_raw": 632,
-   "bought": 166,
-   "buyout_of_raw": 0.2627
+   "bought": 169,
+   "buyout_of_raw": 0.2674
   },
   "cost_brand": {
    "tag": "FBS бренда EPIC LOVE",
@@ -98,19 +98,19 @@
   "cost_cabinet": {
    "tag": "FBS кабинета",
    "window": "2026-09-06—2026-09-19",
-   "orders_raw": 10422,
+   "orders_raw": 10425,
    "logistics_per_order": 7.11,
    "deliveries": 1046,
    "returns": 0,
    "events_per_order": 0.1,
    "handling_per_order": 3.69,
-   "penalty_per_order": 70.72,
+   "penalty_per_order": 70.7,
    "storage_per_order": 0.0,
    "sale_qty": 3246,
    "payout_share": 0.6264,
    "spp_share": 0.4018
   },
   "covered_to": "2026-09-27",
-  "updated_at": "2026-10-02T18:07:21+03:00"
+  "updated_at": "2026-10-03T16:22:05+03:00"
  }
 }
