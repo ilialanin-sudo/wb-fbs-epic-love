@@ -2,14 +2,14 @@
  "el": {
   "return_lag": null,
   "payout_share": 0.6269,
-  "payout_source": "FBS бренда EPIC LOVE, 393 шт продаж",
+  "payout_source": "FBS бренда EPIC LOVE, 391 шт продаж",
   "payout_fbs": {
    "tag": "FBS бренда EPIC LOVE",
-   "qty": 393,
+   "qty": 391,
    "payout_share": 0.6269,
    "kept_share": 0.3731,
-   "spp_share": 0.4176,
-   "spp_compensated": 1.0763,
+   "spp_share": 0.418,
+   "spp_compensated": 1.0771,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-09-07",
@@ -21,11 +21,11 @@
   },
   "payout_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "qty": 393,
+   "qty": 391,
    "payout_share": 0.6269,
    "kept_share": 0.3731,
-   "spp_share": 0.4176,
-   "spp_compensated": 1.0763,
+   "spp_share": 0.418,
+   "spp_compensated": 1.0771,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-09-07",
@@ -37,11 +37,11 @@
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 6761,
-   "payout_share": 0.6267,
-   "kept_share": 0.3733,
-   "spp_share": 0.4102,
-   "spp_compensated": 1.0626,
+   "qty": 6479,
+   "payout_share": 0.6268,
+   "kept_share": 0.3732,
+   "spp_share": 0.4114,
+   "spp_compensated": 1.065,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-09-07",
@@ -51,8 +51,8 @@
     "2026-10-01"
    ]
   },
-  "payout_fbs_qty": 393,
-  "spp_share": 0.4176,
+  "payout_fbs_qty": 391,
+  "spp_share": 0.418,
   "logistics_per_order": 9.67,
   "logistics_fwd_per_order": null,
   "logistics_back_per_order": null,
@@ -67,16 +67,16 @@
   "cohort_whole": {
    "tag": "FBS кабинета",
    "window": "2026-09-13—2026-09-26",
-   "orders_raw": 11470,
-   "bought": 4745,
-   "buyout_of_raw": 0.4137
+   "orders_raw": 11474,
+   "bought": 4760,
+   "buyout_of_raw": 0.4149
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
    "window": "2026-09-13—2026-09-26",
-   "orders_raw": 11470,
-   "bought": 4745,
-   "buyout_of_raw": 0.4137
+   "orders_raw": 11474,
+   "bought": 4760,
+   "buyout_of_raw": 0.4149
   },
   "cohort_brand": {
    "tag": "FBS бренда EPIC LOVE",
@@ -103,19 +103,19 @@
   "cost_cabinet": {
    "tag": "FBS кабинета",
    "window": "2026-09-13—2026-09-26",
-   "orders_raw": 11470,
+   "orders_raw": 11474,
    "logistics_per_order": 4.9,
    "deliveries": 602,
    "returns": 0,
    "events_per_order": 0.052,
    "handling_per_order": 1.99,
-   "penalty_per_order": 77.71,
+   "penalty_per_order": 77.69,
    "storage_per_order": 0.0,
    "sale_qty": 4291,
    "payout_share": 0.6269,
    "spp_share": 0.4175
   },
   "covered_to": "2026-10-04",
-  "updated_at": "2026-10-10T17:44:32+03:00"
+  "updated_at": "2026-10-11T16:24:22+03:00"
  }
 }
