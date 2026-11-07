@@ -1,15 +1,15 @@
 {
  "el": {
   "return_lag": null,
-  "payout_share": 0.6234,
-  "payout_source": "FBS кабинета, 1615 шт продаж",
+  "payout_share": 0.6231,
+  "payout_source": "FBS кабинета, 1398 шт продаж",
   "payout_fbs": {
    "tag": "FBS кабинета",
-   "qty": 1615,
-   "payout_share": 0.6234,
-   "kept_share": 0.3766,
-   "spp_share": 0.3279,
-   "spp_compensated": 0.9275,
+   "qty": 1398,
+   "payout_share": 0.6231,
+   "kept_share": 0.3769,
+   "spp_share": 0.3224,
+   "spp_compensated": 0.9196,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-05",
@@ -21,11 +21,11 @@
   },
   "payout_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "qty": 28,
-   "payout_share": 0.6283,
-   "kept_share": 0.3717,
-   "spp_share": 0.4238,
-   "spp_compensated": 1.0904,
+   "qty": 25,
+   "payout_share": 0.628,
+   "kept_share": 0.372,
+   "spp_share": 0.4127,
+   "spp_compensated": 1.0693,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-05",
@@ -37,11 +37,11 @@
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 1615,
-   "payout_share": 0.6234,
-   "kept_share": 0.3766,
-   "spp_share": 0.3279,
-   "spp_compensated": 0.9275,
+   "qty": 1398,
+   "payout_share": 0.6231,
+   "kept_share": 0.3769,
+   "spp_share": 0.3224,
+   "spp_compensated": 0.9196,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-05",
@@ -51,32 +51,32 @@
     "2026-11-01"
    ]
   },
-  "payout_fbs_qty": 1615,
-  "spp_share": 0.3279,
+  "payout_fbs_qty": 1398,
+  "spp_share": 0.3224,
   "logistics_per_order": 0.14,
   "logistics_fwd_per_order": null,
   "logistics_back_per_order": null,
   "logistics_events_per_order": 0.003,
   "logistics_source": "FBS кабинета — по бренду EPIC LOVE пока 3 оплаченных доставок из нужных 20",
   "handling_per_order": 2.85,
-  "penalty_per_order": 44.81,
+  "penalty_per_order": 44.75,
   "storage_per_order": 0.0,
-  "buyout_of_raw": 0.2982,
+  "buyout_of_raw": 0.2992,
   "buyout_source": "FBS кабинета",
   "source": "FBS кабинета — у бренда EPIC LOVE когорта ещё не дозрела",
   "cohort_whole": {
    "tag": "FBS кабинета",
    "window": "2026-10-11—2026-10-24",
-   "orders_raw": 1415,
-   "bought": 422,
-   "buyout_of_raw": 0.2982
+   "orders_raw": 1417,
+   "bought": 424,
+   "buyout_of_raw": 0.2992
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
    "window": "2026-10-11—2026-10-24",
-   "orders_raw": 1415,
-   "bought": 422,
-   "buyout_of_raw": 0.2982
+   "orders_raw": 1417,
+   "bought": 424,
+   "buyout_of_raw": 0.2992
   },
   "cohort_brand": {
    "tag": "FBS бренда EPIC LOVE",
@@ -103,19 +103,19 @@
   "cost_cabinet": {
    "tag": "FBS кабинета",
    "window": "2026-10-11—2026-10-24",
-   "orders_raw": 1415,
+   "orders_raw": 1417,
    "logistics_per_order": 0.14,
    "deliveries": 4,
    "returns": 0,
    "events_per_order": 0.003,
    "handling_per_order": 2.85,
-   "penalty_per_order": 44.81,
+   "penalty_per_order": 44.75,
    "storage_per_order": 0.0,
    "sale_qty": 381,
    "payout_share": 0.6221,
    "spp_share": 0.2956
   },
   "covered_to": "2026-11-01",
-  "updated_at": "2026-11-06T19:57:52+03:00"
+  "updated_at": "2026-11-07T17:25:06+03:00"
  }
 }
