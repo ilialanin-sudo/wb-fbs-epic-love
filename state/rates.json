@@ -2,14 +2,14 @@
  "el": {
   "return_lag": null,
   "payout_share": 0.6224,
-  "payout_source": "FBS кабинета, 475 шт продаж",
+  "payout_source": "FBS кабинета, 422 шт продаж",
   "payout_fbs": {
    "tag": "FBS кабинета",
-   "qty": 475,
+   "qty": 422,
    "payout_share": 0.6224,
    "kept_share": 0.3776,
-   "spp_share": 0.2799,
-   "spp_compensated": 0.8644,
+   "spp_share": 0.2771,
+   "spp_compensated": 0.8611,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-19",
@@ -21,11 +21,11 @@
   },
   "payout_brand": {
    "tag": "FBS бренда EPIC LOVE",
-   "qty": 3,
-   "payout_share": 0.6274,
-   "kept_share": 0.3726,
-   "spp_share": 0.3538,
-   "spp_compensated": 0.9708,
+   "qty": 1,
+   "payout_share": 0.6405,
+   "kept_share": 0.3595,
+   "spp_share": 0.3362,
+   "spp_compensated": 0.9648,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-19",
@@ -36,11 +36,11 @@
   },
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 475,
+   "qty": 422,
    "payout_share": 0.6224,
    "kept_share": 0.3776,
-   "spp_share": 0.2799,
-   "spp_compensated": 0.8644,
+   "spp_share": 0.2771,
+   "spp_compensated": 0.8611,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-19",
@@ -50,8 +50,8 @@
     "2026-11-09"
    ]
   },
-  "payout_fbs_qty": 475,
-  "spp_share": 0.2799,
+  "payout_fbs_qty": 422,
+  "spp_share": 0.2771,
   "logistics_per_order": 1.04,
   "logistics_fwd_per_order": null,
   "logistics_back_per_order": null,
@@ -60,22 +60,22 @@
   "handling_per_order": 4.71,
   "penalty_per_order": 56.48,
   "storage_per_order": 0.0,
-  "buyout_of_raw": 0.3414,
+  "buyout_of_raw": 0.3448,
   "buyout_source": "FBS кабинета",
   "source": "FBS кабинета — у бренда EPIC LOVE когорта ещё не дозрела",
   "cohort_whole": {
    "tag": "FBS кабинета",
    "window": "2026-10-25—2026-11-07",
    "orders_raw": 290,
-   "bought": 99,
-   "buyout_of_raw": 0.3414
+   "bought": 100,
+   "buyout_of_raw": 0.3448
   },
   "cohort_fbs": {
    "tag": "FBS кабинета",
    "window": "2026-10-25—2026-11-07",
    "orders_raw": 290,
-   "bought": 99,
-   "buyout_of_raw": 0.3414
+   "bought": 100,
+   "buyout_of_raw": 0.3448
   },
   "cohort_brand": null,
   "cost_brand": null,
@@ -95,6 +95,6 @@
    "spp_share": 0.2336
   },
   "covered_to": "2026-11-15",
-  "updated_at": "2026-11-16T21:55:16+03:00"
+  "updated_at": "2026-11-17T22:24:37+03:00"
  }
 }
