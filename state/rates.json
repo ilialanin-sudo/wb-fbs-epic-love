@@ -2,14 +2,14 @@
  "el": {
   "return_lag": null,
   "payout_share": 0.6221,
-  "payout_source": "FBS кабинета, 283 шт продаж",
+  "payout_source": "FBS кабинета, 240 шт продаж",
   "payout_fbs": {
    "tag": "FBS кабинета",
-   "qty": 283,
+   "qty": 240,
    "payout_share": 0.6221,
    "kept_share": 0.3779,
-   "spp_share": 0.2589,
-   "spp_compensated": 0.8394,
+   "spp_share": 0.2574,
+   "spp_compensated": 0.8378,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-26",
@@ -22,11 +22,11 @@
   "payout_brand": null,
   "payout_whole": {
    "tag": "FBS кабинета",
-   "qty": 283,
+   "qty": 240,
    "payout_share": 0.6221,
    "kept_share": 0.3779,
-   "spp_share": 0.2589,
-   "spp_compensated": 0.8394,
+   "spp_share": 0.2574,
+   "spp_compensated": 0.8378,
    "base_commission_pct": 35.0,
    "weeks": [
     "2026-10-26",
@@ -36,8 +36,8 @@
     "2026-11-16"
    ]
   },
-  "payout_fbs_qty": 283,
-  "spp_share": 0.2589,
+  "payout_fbs_qty": 240,
+  "spp_share": 0.2574,
   "logistics_per_order": 4.27,
   "logistics_fwd_per_order": null,
   "logistics_back_per_order": null,
@@ -81,6 +81,6 @@
    "spp_share": 0.2327
   },
   "covered_to": "2026-11-22",
-  "updated_at": "2026-11-23T14:07:46+03:00"
+  "updated_at": "2026-11-24T20:59:26+03:00"
  }
 }
